@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CONFIG } from "@/lib/config";
 import { useGame } from "@/stores/useGame";
+import { InfotainmentScreen } from "./InfotainmentScreen";
 
 /**
  * CarInterior
@@ -231,14 +232,12 @@ export function CarInterior() {
       <mesh position={[PX * 0.05, 0.64, -0.2]} material={m.dashSoft}>
         <boxGeometry args={[0.4, 0.34, 0.9]} />
       </mesh>
-      {/* Infotainment screen, angled toward the driver */}
-      <mesh
+      {/* Infotainment screen, angled toward the driver. Live, and it opens
+          the head unit when clicked. */}
+      <InfotainmentScreen
         position={[PX * 0.02, 0.87, -0.48]}
-        rotation-y={Math.sign(DX) * 0.18}
-        material={m.screen}
-      >
-        <boxGeometry args={[0.26, 0.15, 0.02]} />
-      </mesh>
+        rotation={Math.sign(DX) * 0.18}
+      />
       {/* Shifter — on the driver's inboard hand, so it swaps sides too */}
       <group position={[PX * 0.05, 0.8, -0.1]}>
         <group ref={shifterRef}>

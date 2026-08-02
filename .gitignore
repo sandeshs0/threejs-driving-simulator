@@ -4,3 +4,9 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# Track files for the stereo. Not committed: they are large, and a
+# recording of a folk song is separately owned even when the song itself is
+# traditional. See public/music/README.md.
+public/music/*
+!public/music/README.md

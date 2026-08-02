@@ -60,6 +60,23 @@ export class AudioEngine {
     return this.running;
   }
 
+  /**
+   * The shared context and the bus the stereo plugs into.
+   *
+   * The music engine hangs off these rather than opening a context of its
+   * own: a second AudioContext is a second clock and a second output
+   * stream, and on most browsers it also means the mute key silences the
+   * engine while the radio plays merrily on. Routing through `master` gets
+   * muting and the master volume for free.
+   */
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  get mediaBus(): GainNode | null {
+    return this.running ? this.master : null;
+  }
+
   /** Must be called from a user gesture — browsers block audio otherwise. */
   async start() {
     if (this.running) return;

@@ -17,7 +17,13 @@ export function StartOverlay() {
 
   return (
     <div
-      onClick={start}
+      onClick={() => {
+        start();
+        const audio = document.getElementById("main-media-player") as HTMLAudioElement;
+        if (audio) {
+          audio.play().catch(() => {});
+        }
+      }}
       className="fixed inset-0 z-20 flex cursor-pointer flex-col items-center justify-center bg-black/70 backdrop-blur-sm"
     >
       <h1 className="text-5xl font-semibold tracking-tight text-white">
@@ -38,6 +44,10 @@ export function StartOverlay() {
         <span>Horn</span>
         <span className="font-mono text-white/90">M</span>
         <span>Mute</span>
+        <span className="font-mono text-white/90">Tab</span>
+        <span>Map</span>
+        <span className="font-mono text-white/90">I</span>
+        <span>Infotainment — radio, music, YouTube</span>
         <span className="font-mono text-white/90">Mouse</span>
         <span>Look around the cabin</span>
       </div>

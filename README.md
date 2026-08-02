@@ -20,6 +20,7 @@ Click the title card to start — that click is also the user gesture browsers r
 | `H` | Horn |
 | `M` | Mute |
 | `Tab` | Full route map |
+| `I` | Infotainment — radio, music, YouTube |
 | Mouse | Look around / orbit |
 
 You drive on the **left**. Nepal is a keep-left country, the car is
@@ -53,6 +54,9 @@ components/Experience   composition root: canvas, physics, systems
   environment/          biome scenery + sky, sun, fog
   audio/AudioSystem     synthesizer lifecycle
   ui/                   HUD, radar + route map, start overlay, Leva panel
+  ui/Infotainment       the head unit: radio, library, YouTube
+  ui/MediaPlayer        live streams and track files, one media element
+  vehicle/InfotainmentScreen  the live panel in the centre console
 lib/
   config.ts             every tuning constant, live-editable via Leva
   road.ts               the road curve, elevation and terrain height
@@ -67,6 +71,8 @@ lib/
   biomes.ts             biome table and cross-fading
   scatter.ts            deterministic prop placement
   audio/AudioEngine.ts  Web Audio synthesis (no audio files)
+  audio/MusicEngine.ts  the stereo: bansuri, madal, drone, FM colouring
+  music/tracks.ts       arrangements as data, FM stations, YouTube parsing
 stores/useGame.ts       transient vehicle state + reactive HUD slice
 ```
 
@@ -147,6 +153,38 @@ Rapier carries the car's collider for the static world, but it does not own the 
 The response comes back as three things the arcade model can express: `spin`, a yaw rate that unwinds as the tyres bite; `pushX/pushZ`, a sideways knock it otherwise has no vocabulary for; and `impact`, a decaying flash that drives the camera shake, the tyre screech and the crash voice in the audio engine. Damage accumulates and takes the edge off the engine.
 
 Traffic is driven, not played back. Vehicles behind you hold a gap rather than parking on your bumper, and oncoming traffic that finds you on its side of the road dives for the near side — the left, here — which is the direction that actually clears the conflict.
+
+### The stereo is synthesized too
+
+`I`, the screen in the centre console, or the tab above the speedo opens the head unit, built to Android Auto's actual design language: a Material 3 navigation rail with an active indicator pill behind the icon, one content pane, and a persistent now-playing bar.
+
+The rules it follows are the ones that make an automotive interface work rather than merely look dark. Surfaces are separated by **tone, not shadow or glow** — automotive UI is matte because gloss reflects a windscreen. There is **one accent** (M3 dark primary), used only for state: what is selected, what is playing; nothing decorative is coloured. Targets are 48–56dp because this is operated at arm's length while moving. Frequencies are set in **tabular numerals** so the dial does not jitter between 96.1 and 100.0. And every glyph is a **Material vector, never an emoji** — emoji inherit the platform's own glyph set, so the same screen renders as flat vectors on one machine and glossy blobs on another, at sizes and baselines nobody controls. `components/ui/Icons.tsx` holds the paths.
+
+**The radio is the real broadcast.** `LiveRadio` points an ordinary `<audio>` element at the same URL the station's own web player uses, so tuning to 100.0 plays what is on air in Kathmandu right now. Four stations: Kantipur FM 96.1, Radio Nepal 100.0, and Radio Nepal's Bagmati and Gandaki provincial services.
+
+Only stations with a verified live stream are listed at all. A dial full of frequencies that turn out to play synthesized filler is a toy, and worse, a toy pretending to be a radio — so Ujyaalo, Hits FM, Image FM and Sagarmatha, whose endpoints could not be confirmed, are simply not there.
+
+Three things shape that path, and the interface says so rather than hiding them:
+
+- **It has to be HTTPS.** An HTTP stream on an HTTPS page is blocked as mixed content. Every endpoint in `STATIONS` was checked and returns audio over TLS.
+- **It cannot go through the AudioContext.** `createMediaElementSource` needs CORS headers that broadcast servers do not send, so volume and mute are applied to the media element directly rather than through the master gain.
+- **Endpoints rot.** A failed or stalled stream marks that station dead for the session and hands it to the synthesizer, so the radio never just goes quiet. That fallback is a parachute, not a feature, which is why there is no switch for it.
+
+The element is mounted for the session and only its `src` changes; remounting per station would restart buffering, which on a live stream is a two-second hole in the audio.
+
+**Library tracks play real recordings when you supply them.** Drop an audio file at `public/music/<id>.mp3` and that track plays it instead of the synthesizer — no code change and no manifest, because a manifest that has to be kept in step with a folder eventually drifts and gives you a silent track with no obvious cause. A `file:` field on the track overrides the extension, which is how `dhading.m4a` and `deuralidada.m4a` are picked up.
+
+Those two are also what **Follow the route** selects — Dhading Jilla Baireni Ghar through the Dhading hills, Deurali Dada on the descent from Thankot — so the real recordings are what you actually hear on the drive. `MediaPlayer` is one `<audio>` element serving both this and the radio, since a station whose stream is down and a track with no file on disk are the same situation wearing different clothes.
+
+Those files are **gitignored on purpose** — see `public/music/README.md`. A folk *song* being traditional does not make a *recording* of it free; the performance and master are separately owned. So a fresh clone has an empty folder and a working stereo, and the library labels each track as a recording or as synthesized rather than leaving you to guess.
+
+Anything without a file is **played live by `MusicEngine`**, out of the same oscillators and the same AudioContext as the engine note — so `M` mutes both and there is only ever one clock and one output stream. `lib/music/tracks.ts` holds arrangements as *data*: a melody line, a bass line, a taal. Four voices play them — a bansuri lead with breath noise on the attack, a sine bass, a barely-there harmonium drone, and a madal whose `dhin` is a sine dropping in pitch and whose `na` is filtered noise. Notes are scheduled a quarter-second ahead against `ctx.currentTime`, because triggering them on a JS timer gives audible jitter on any frame the main thread is busy — which in a 3D game is most of them. Radio mode is the same synth through a bandpass and a hiss floor, which is genuinely how FM differs from the same music on a phone.
+
+Be clear about what that means. The traditional tunes are in the right idiom — right scale, right taal, a melodic shape that goes where the song goes — but they are **arrangements from memory, not transcriptions**, and a Nepali listener will hear the difference at once. That is exactly why there is a YouTube tab: for the actual recording, paste the actual recording. The interface says so on the card rather than hiding it in here.
+
+With **Follow the route** on, the library tracks the journey — the Dhading song through Dhading, the tunnel piece in the bore, Valley Traffic once you are in town. Picking a track by hand turns it off, because a manual choice is an instruction rather than a suggestion. The region follow lives in `AudioSystem`, not in the modal, or the music would only follow the route while the screen was open.
+
+The whole modal stays mounted and collapses to a clipped one-pixel box when closed, and the YouTube player sits outside the tab switch. Both for the same reason: an iframe stops the instant React unmounts it, and a car stereo does not stop playing when you look away from it.
 
 ## Extending
 

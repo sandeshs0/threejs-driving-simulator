@@ -17,6 +17,8 @@ import { Effects } from "@/components/effects/Effects";
 import { AudioSystem } from "@/components/audio/AudioSystem";
 import { HUD } from "@/components/ui/HUD";
 import { Minimap } from "@/components/ui/Minimap";
+import { Infotainment } from "@/components/ui/Infotainment";
+import { MediaPlayer } from "@/components/ui/MediaPlayer";
 import { HudBridge } from "@/components/ui/HudBridge";
 import { StartOverlay } from "@/components/ui/StartOverlay";
 import { TuningPanel } from "@/components/ui/TuningPanel";
@@ -84,6 +86,8 @@ export default function Experience() {
       {/* DOM overlays */}
       <HUD />
       <Minimap />
+      <Infotainment />
+      <MediaPlayer />
       <StartOverlay />
       <TuningPanel />
     </>

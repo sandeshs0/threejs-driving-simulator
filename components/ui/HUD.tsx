@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { CAMERA_MODE_NAMES } from "@/lib/controls";
 import { ROUTE_END, WAYPOINTS } from "@/lib/journey";
 import { useGame } from "@/stores/useGame";
+import { nowPlaying, useMedia } from "@/stores/useMedia";
+import { Icon } from "./Icons";
 
 /** R / N / 1..5 for the gear readout. */
 const gearLabel = (gear: number) =>
@@ -121,9 +123,45 @@ export function HUD() {
 
       <div className="pointer-events-none fixed top-6 right-6 select-none text-right text-[13px] leading-relaxed text-white/60 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
         W accelerate · S brake / reverse · A / D steer
-        <br />C camera · H horn · M mute · Tab map · mouse to look
+        <br />C camera · H horn · M mute · Tab map · I stereo · mouse to look
       </div>
+
+      <StereoButton />
     </>
+  );
+}
+
+/**
+ * The stereo tab: what is playing, and a way in for anyone who has not read
+ * the key list. Sits above the speed readout so it is out of the way of
+ * both the radar and the gauges.
+ */
+function StereoButton() {
+  const source = useMedia((s) => s.source);
+  const playing = nowPlaying(useMedia());
+  const setOpen = useMedia((s) => s.setOpen);
+
+  return (
+    <button
+      onClick={() => setOpen(true)}
+      title="Infotainment (I)"
+      className="fixed bottom-40 left-6 flex max-w-[230px] items-center gap-2.5 rounded-full bg-black/50 py-2 pl-2.5 pr-4 text-left text-white/85 ring-1 ring-white/[0.12] backdrop-blur-sm transition hover:bg-black/70"
+    >
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        style={{ backgroundColor: "#A8C7FA", color: "#0A2E58" }}
+      >
+        <Icon name={source === "radio" ? "radio" : "note"} size={17} />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] leading-tight">
+          {source === "off" ? "Stereo" : playing.title}
+        </span>
+        <span className="block truncate text-[11px] leading-tight text-white/45">
+          {source === "off" ? "Press I" : playing.subtitle || "Playing"}
+        </span>
+      </span>
+    </button>
   );
 }
 
