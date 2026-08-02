@@ -100,6 +100,10 @@ export interface HudState {
   damage: number;
   crashes: number;
   wrongLane: boolean;
+  /** Street you are on, and the next crossing — empty outside the city. */
+  street: string;
+  junction: string;
+  junctionDistance: number;
 }
 
 interface GameStore {
@@ -158,6 +162,9 @@ export const useGame = create<GameStore>((set) => ({
     damage: 0,
     crashes: 0,
     wrongLane: false,
+    street: "",
+    junction: "",
+    junctionDistance: 0,
   },
   started: false,
   muted: false,

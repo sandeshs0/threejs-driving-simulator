@@ -1,5 +1,6 @@
 import { CONFIG, pavementOuter, pavementY, roadHalfWidth } from "./config";
 import { cityness } from "./journey";
+import { inJunction } from "./junction";
 import { chunkSeed, mulberry32 } from "./rng";
 import { elevation, roadPoint, roadYaw } from "./road";
 
@@ -122,6 +123,16 @@ export function outwardVector(rot: number): [number, number] {
   return [Math.cos(rot), -Math.sin(rot)];
 }
 
+/**
+ * Unit vector along the street for a given heading — the direction a row of
+ * shopfronts runs in. The road's own forward direction, and the partner to
+ * `outwardVector`: together they are the frame everything on a street is
+ * placed in, whichever way the street happens to point.
+ */
+export function alongVector(rot: number): [number, number] {
+  return [-Math.sin(rot), -Math.cos(rot)];
+}
+
 /** Offset a placed item from its centre toward (or away from) the road. */
 export function offsetFrom(
   item: Placed,
@@ -170,6 +181,15 @@ export function generateCity(index: number): CityLayout {
   /** Anything that stands on the pavement rather than in the road. */
   const onPavement = (u: number, s: number) => place(u, s, pavementY());
 
+  /**
+   * The Kalanki junction owns its own ground — the Ring Road is cut into it.
+   * Everything here is placed at street level from `elevation(s)`, which
+   * knows nothing about that, so a shopfront left inside the footprint
+   * hangs six metres over the open underpass. Skip the band entirely and
+   * let <KalankiJunction/> furnish it.
+   */
+  const blocked = (s: number) => inJunction(s);
+
   // ---- Building frontages down both sides ----
   // Walk each side independently, laying plots end to end with small gaps,
   // which is what gives a street its irregular, unplanned rhythm.
@@ -183,7 +203,7 @@ export function generateCity(index: number): CityLayout {
       const gap = rng() < 0.18 ? 2.5 + rng() * 4 : 0.4 + rng() * 0.9;
 
       // Density falls off at the edge of town.
-      if (rng() < urban) {
+      if (rng() < urban && !blocked(s + width / 2)) {
         const depth = newari ? 6 + rng() * 3 : 7 + rng() * 6;
         const floors = newari ? 3 + Math.floor(rng() * 2) : 3 + Math.floor(rng() * 4);
         const setback = KERB() + 1.4 + rng() * 1.2;
@@ -217,6 +237,7 @@ export function generateCity(index: number): CityLayout {
     const side = rng() < 0.5 ? -1 : 1;
     const s = sStart + rng() * L;
     const kindRoll = rng();
+    if (blocked(s)) continue;
     layout.stalls.push({
       ...place(side * (KERB() + 1.1), s),
       kind:
@@ -235,7 +256,9 @@ export function generateCity(index: number): CityLayout {
   const cartCount = Math.round(urban * rng() * 2.5);
   for (let i = 0; i < cartCount; i++) {
     const side = rng() < 0.5 ? -1 : 1;
-    layout.carts.push(onPavement(side * (KERB() - 1.6), sStart + rng() * L));
+    const s = sStart + rng() * L;
+    if (blocked(s)) continue;
+    layout.carts.push(onPavement(side * (KERB() - 1.6), s));
   }
 
   // Bikes park in a rank, nose to the kerb, so they come in short runs
@@ -245,9 +268,8 @@ export function generateCity(index: number): CityLayout {
     const start = sStart + rng() * (L - 8);
     const count = 2 + Math.floor(rng() * 4);
     for (let i = 0; i < count; i++) {
-      layout.parkedBikes.push(
-        onPavement(side * (KERB() - 2.1), start + i * 1.0)
-      );
+      if (blocked(start + i)) continue;
+      layout.parkedBikes.push(onPavement(side * (KERB() - 2.1), start + i * 1.0));
     }
   }
 
@@ -261,6 +283,7 @@ export function generateCity(index: number): CityLayout {
     const size = 1 + Math.floor(rng() * 3);
     for (let i = 0; i < size; i++) {
       const spread = (rng() - 0.5) * 3;
+      if (blocked(s + spread)) continue;
       layout.bystanders.push({
         ...onPavement(side * (WALK_LINE() + rng() * 1.9), s + spread),
         pose: rng() < 0.22 ? "squat" : "stand",
@@ -274,16 +297,18 @@ export function generateCity(index: number): CityLayout {
   // ---- Animals ----
   // A dog asleep on the pavement is a certainty; a cow standing in the road
   // is close enough to one, and it is the only obstacle nobody will honk at.
-  if (rng() < urban * 0.5) {
+  const dogS = sStart + rng() * L;
+  if (rng() < urban * 0.5 && !blocked(dogS)) {
     layout.animals.push({
-      ...onPavement((rng() < 0.5 ? -1 : 1) * (KERB() - 1.2), sStart + rng() * L),
+      ...onPavement((rng() < 0.5 ? -1 : 1) * (KERB() - 1.2), dogS),
       kind: "dog",
     });
   }
-  if (rng() < urban * 0.22) {
+  const cowS = sStart + rng() * L;
+  if (rng() < urban * 0.22 && !blocked(cowS)) {
     const side = rng() < 0.5 ? -1 : 1;
     layout.animals.push({
-      ...place(side * (roadHalfWidth() - 0.6), sStart + rng() * L),
+      ...place(side * (roadHalfWidth() - 0.6), cowS),
       kind: "cow",
     });
   }
@@ -291,7 +316,7 @@ export function generateCity(index: number): CityLayout {
   // ---- Street lighting, every 24 m, alternating sides ----
   let lampSide = index % 2 === 0 ? -1 : 1;
   for (let s = sStart + 6; s < sStart + L; s += 24) {
-    layout.lamps.push({ ...onPavement(lampSide * (KERB() - 0.6), s) });
+    if (!blocked(s)) layout.lamps.push({ ...onPavement(lampSide * (KERB() - 0.6), s) });
     lampSide *= -1;
   }
 
@@ -308,10 +333,10 @@ export function generateCity(index: number): CityLayout {
 
   // Prayer flags across the street, above the wires. Not on every block —
   // they go up for a festival and stay until the weather takes them down.
-  if (urban > 0.5 && rng() < 0.45) {
-    const s = sStart + 10 + rng() * (L - 20);
-    const a = onPavement(-(KERB() - 0.6), s);
-    const b = onPavement(KERB() - 0.6, s + 2 + rng() * 4);
+  const flagS = sStart + 10 + rng() * (L - 20);
+  if (urban > 0.5 && rng() < 0.45 && !blocked(flagS)) {
+    const a = onPavement(-(KERB() - 0.6), flagS);
+    const b = onPavement(KERB() - 0.6, flagS + 2 + rng() * 4);
     layout.flagLines.push({
       from: [a.x, a.y + 7.2, a.z],
       to: [b.x, b.y + 7.2, b.z],
@@ -319,7 +344,7 @@ export function generateCity(index: number): CityLayout {
   }
 
   // ---- A junction with signals roughly every fourth block ----
-  if (urban > 0.6 && index % 4 === 0) {
+  if (urban > 0.6 && index % 4 === 0 && !blocked(sStart + L * 0.5)) {
     const s = sStart + L * 0.5;
     for (const side of [-1, 1]) {
       layout.signals.push({ ...onPavement(side * (KERB() - 0.5), s) });
@@ -336,10 +361,11 @@ export function generateCity(index: number): CityLayout {
       kind: rng() < 0.6 ? "pagoda" : "stupa",
     });
   }
-  if (urban > 0.4 && rng() < 0.4) {
+  const chaityaS = sStart + rng() * L;
+  if (urban > 0.4 && rng() < 0.4 && !blocked(chaityaS)) {
     const side = rng() < 0.5 ? -1 : 1;
     layout.landmarks.push({
-      ...onPavement(side * (KERB() - 1.3), sStart + rng() * L),
+      ...onPavement(side * (KERB() - 1.3), chaityaS),
       kind: "chaitya",
     });
   }

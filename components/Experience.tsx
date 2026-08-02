@@ -11,6 +11,7 @@ import { CameraController } from "@/components/camera/CameraController";
 import { RoadChunkManager } from "@/components/road/RoadChunkManager";
 import { Traffic } from "@/components/traffic/Traffic";
 import { Pedestrians } from "@/components/city/Pedestrians";
+import { CityGridManager } from "@/components/city/CityGridManager";
 import { Atmosphere } from "@/components/environment/Atmosphere";
 import { Effects } from "@/components/effects/Effects";
 import { AudioSystem } from "@/components/audio/AudioSystem";
@@ -69,6 +70,7 @@ export default function Experience() {
 
             <CameraController />
             <RoadChunkManager />
+            <CityGridManager />
             <Traffic />
             <Pedestrians />
             <Atmosphere />

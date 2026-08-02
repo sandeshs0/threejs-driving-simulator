@@ -13,8 +13,9 @@ import { Guardrail } from "./Guardrail";
 import { Footpath } from "./Footpath";
 import { CityChunk } from "@/components/city/CityChunk";
 import { Checkpost } from "./Checkpost";
+import { KalankiJunction } from "./KalankiJunction";
 import { featureSpan } from "@/lib/roadFeatures";
-import { CHECKPOST_S } from "@/lib/journey";
+import { CHECKPOST_S, GRID_START_S, KALANKI_S } from "@/lib/journey";
 
 /**
  * RoadChunk
@@ -36,6 +37,15 @@ export function RoadChunk({ index }: { index: number }) {
 
   const scatter = useMemo(() => generateScatter(index), [index]);
   const span = useMemo(() => featureSpan(index), [index]);
+
+  /**
+   * Past the handover the corridor stops existing: the street grid draws
+   * the ground, the highway's own carriageway (it is avenue 0 there) and
+   * everything built along it. Both drawing it would mean two coplanar
+   * roads fighting for the same pixels, and a terrain apron 130 m wide
+   * sitting on top of the side streets.
+   */
+  const handedOver = sStart >= GRID_START_S;
 
   // ---- Surface geometry ----
   const geometries = useMemo(() => {
@@ -92,6 +102,11 @@ export function RoadChunk({ index }: { index: number }) {
     }
     return out;
   }, [sStart, sEnd]);
+
+  // Every hook above runs unconditionally — the handover has to be tested
+  // after them, not before, or the hook order changes the frame the player
+  // crosses into the city.
+  if (handedOver) return null;
 
   return (
     <group>
@@ -154,6 +169,12 @@ export function RoadChunk({ index }: { index: number }) {
       {/* The Thankot checkpost, wherever the route puts it. One chunk owns
           it — the one its road distance falls inside. */}
       {CHECKPOST_S >= sStart && CHECKPOST_S < sEnd && <Checkpost s={CHECKPOST_S} />}
+
+      {/* Kalanki chowk and the Ring Road underpass beneath it. Owned by the
+          chunk its centre falls in; the structure itself reaches well past
+          the chunk boundary, which is fine — it is one group, not a
+          per-chunk ribbon. */}
+      {KALANKI_S >= sStart && KALANKI_S < sEnd && <KalankiJunction />}
 
       {/* Kathmandu */}
       {scatter.urban > 0.05 && <CityChunk index={index} />}

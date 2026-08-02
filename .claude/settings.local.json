@@ -17,7 +17,9 @@
       "PowerShell(npx tsc --noEmit; \"tsc exit: $LASTEXITCODE\")",
       "PowerShell(foreach \\($id in 3360, 19316, 12148\\) { try { Stop-Process -Id $id -Force -ErrorAction Stop; \"stopped $id\" } catch { \"already gone: $id\" } }; Start-Sleep -Seconds 2; if \\(Test-Path \"D:\\\\Driving Simulator\\\\.next\"\\) { Remove-Item -Recurse -Force \"D:\\\\Driving Simulator\\\\.next\" -ErrorAction SilentlyContinue }; if \\(Test-Path \"D:\\\\Driving Simulator\\\\.next\"\\) { \"WARNING: .next still present\" } else { \".next removed\" })",
       "PowerShell(Get-Content *)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:thehimalayantimes.com)",
+      "Bash(perl -0pi -e 's/rotation=\\\\{\\\\[0, \\(b|w|a|h\\)\\\\.rot, 0\\\\]\\\\}/rotation={[0, $1.rot + FACE, 0]}/g' components/city/CityChunk.tsx)"
     ]
   }
 }

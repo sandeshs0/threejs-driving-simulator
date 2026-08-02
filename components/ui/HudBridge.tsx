@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { CONFIG } from "@/lib/config";
 import { biomeForChunk } from "@/lib/biomes";
+import { inGrid, locate } from "@/lib/cityGrid";
 import { nextWaypoint, placeAt, progressAt } from "@/lib/journey";
 import { sFromZ } from "@/lib/road";
 import { useGame } from "@/stores/useGame";
@@ -35,6 +36,11 @@ export function HudBridge() {
     const chunk = Math.floor(s / CONFIG.road.chunkLength);
     const next = nextWaypoint(s);
 
+    // Street-level position, once the world is a network you can get lost in.
+    const where = inGrid(vehicle.position.z)
+      ? locate(vehicle.position.x, vehicle.position.z)
+      : null;
+
     setHud({
       speedKmh: Math.abs(vehicle.speed) * 3.6,
       fps,
@@ -48,6 +54,9 @@ export function HudBridge() {
       damage: vehicle.damage,
       crashes: vehicle.crashes,
       wrongLane: vehicle.wrongLane,
+      street: where ? where.street : "",
+      junction: where && !where.atJunction ? where.junction : "",
+      junctionDistance: where ? where.junctionDistance : 0,
     });
   });
 

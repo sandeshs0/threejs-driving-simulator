@@ -7,6 +7,7 @@ import { useKeyboardControls } from "@react-three/drei";
 import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { CONFIG, driveHalfWidth, ownLaneU } from "@/lib/config";
 import { Controls, UPDATE_ORDER } from "@/lib/controls";
+import { contain, inGrid, onStreet, type Containment } from "@/lib/cityGrid";
 import { centerDX, isOnAsphalt, lateralOffset, sFromZ, surfaceY } from "@/lib/road";
 import { useGame } from "@/stores/useGame";
 import { CarExterior } from "./CarExterior";
@@ -46,6 +47,7 @@ export function Vehicle() {
     forward: new THREE.Vector3(),
     quat: new THREE.Quaternion(),
     euler: new THREE.Euler(0, 0, 0, "YXZ"),
+    containment: { x: 0, z: 0, corrected: false, push: 0 } as Containment,
   }).current;
 
   useFrame((_, dt) => {
@@ -157,30 +159,50 @@ export function Vehicle() {
     car.wheelSpin += (car.speed / v.wheelRadius) * dt;
 
     // ---- Stay on the road ----
-    // A barrier at the guardrail line, rather than an open world the car
-    // can wander off. It matters most on bridges, where "off the road" is
-    // a thirty-metre drop, but it also keeps the drive pointed at the
-    // road instead of across the scenery.
+    // Two different worlds, and the car is held in whichever it is in.
+    //
+    // On the highway there is one road, so the car is clamped to a lateral
+    // offset from it. That matters most on bridges, where "off the road" is
+    // a thirty-metre drop, and it keeps the drive pointed at the road
+    // rather than across the scenery.
+    //
+    // In the city there is a network, so the car is held on the union of
+    // the streets instead — free to turn at any junction, stopped by the
+    // buildings. The handover is seamless because the grid's avenue 0 is
+    // the highway, with the same centreline and the same half-width.
     let offset = lateralOffset(car.position.x, car.position.z);
     let scrape = 0;
-    const limit = driveHalfWidth();
-    if (Math.abs(offset) > limit) {
-      // Push straight back along the road normal, which leaves distance
-      // travelled untouched — correcting via roadPoint would shunt the
-      // car up to a metre forward or back and read as a lurch.
-      const s = sFromZ(car.position.z);
-      const dx = centerDX(s);
-      const len = Math.hypot(dx, 1);
-      const dir = Math.sign(offset);
-      const push = Math.abs(offset) - limit;
+    const city = inGrid(car.position.z);
 
-      car.position.x -= (dir * push) / len;
-      car.position.z -= (dir * push * dx) / len;
-      offset = dir * limit;
+    if (city) {
+      const held = contain(car.position.x, car.position.z, scratch.containment);
+      if (held.corrected) {
+        car.position.x = held.x;
+        car.position.z = held.z;
+        car.speed *= 1 - Math.min(0.6, held.push * 6) * dt * 4;
+        scrape = Math.min(1, 0.35 + held.push * 4);
+      }
+      offset = lateralOffset(car.position.x, car.position.z);
+    } else {
+      const limit = driveHalfWidth();
+      if (Math.abs(offset) > limit) {
+        // Push straight back along the road normal, which leaves distance
+        // travelled untouched — correcting via roadPoint would shunt the
+        // car up to a metre forward or back and read as a lurch.
+        const s = sFromZ(car.position.z);
+        const dx = centerDX(s);
+        const len = Math.hypot(dx, 1);
+        const dir = Math.sign(offset);
+        const push = Math.abs(offset) - limit;
 
-      // Scrubbing along a barrier costs speed and howls.
-      car.speed *= 1 - Math.min(0.6, push * 6) * dt * 4;
-      scrape = Math.min(1, 0.35 + push * 4);
+        car.position.x -= (dir * push) / len;
+        car.position.z -= (dir * push * dx) / len;
+        offset = dir * limit;
+
+        // Scrubbing along a barrier costs speed and howls.
+        car.speed *= 1 - Math.min(0.6, push * 6) * dt * 4;
+        scrape = Math.min(1, 0.35 + push * 4);
+      }
     }
 
     // ---- Follow the road surface ----
@@ -199,11 +221,18 @@ export function Vehicle() {
 
     // ---- Surface + tyre slip ----
     car.lateral = offset;
-    car.offRoad = !isOnAsphalt(offset);
+    // In the city "on the asphalt" means on any street, not within a lane
+    // width of the highway — otherwise every side street reports as gravel
+    // and the car ploughs through town with the off-road drag on.
+    car.offRoad = city
+      ? !onStreet(car.position.x, car.position.z)
+      : !isOnAsphalt(offset);
 
     // Nepal keeps left. Straying onto the offside is legal enough to
     // overtake with, but the HUD says so and oncoming traffic reacts.
-    car.wrongLane = offset * Math.sign(ownLaneU()) < -0.6;
+    // Only meaningful on the highway: on a side street with no centre line
+    // there is no offside to be on.
+    car.wrongLane = !city && offset * Math.sign(ownLaneU()) < -0.6;
 
     const corneringSlip = THREE.MathUtils.clamp(
       (Math.abs(car.lateralAccel) - 5.5) / 8, 0, 1

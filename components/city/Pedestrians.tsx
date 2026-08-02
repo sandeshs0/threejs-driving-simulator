@@ -5,8 +5,15 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { pavementOuter, pavementY, roadHalfWidth } from "@/lib/config";
 import { UPDATE_ORDER } from "@/lib/controls";
+import {
+  alongOf,
+  alongYaw,
+  currentStreet,
+  inGrid,
+  streetPoint,
+} from "@/lib/cityGrid";
 import { cityness } from "@/lib/journey";
-import { roadPoint, roadYaw, sFromZ } from "@/lib/road";
+import { elevation, roadPoint, roadYaw, sFromZ } from "@/lib/road";
 import { useGame } from "@/stores/useGame";
 import { makeLimbs, Person, type Limbs } from "./Person";
 
@@ -26,6 +33,12 @@ import { makeLimbs, Person, type Limbs } from "./Person";
  *
  * They exist only where there is a footpath to walk on, which is to say
  * only once the road has become a city street.
+ *
+ * Past the handover to the grid they follow *the street the player is on*
+ * rather than the highway. Turn down a lane and the crowd comes with you —
+ * which is not a cheat so much as the only sane reading of a pooled crowd:
+ * the pool exists to populate wherever the player can see, and in a network
+ * that is a different street every time you turn.
  */
 
 const COUNT = 22;
@@ -94,7 +107,18 @@ export function Pedestrians() {
       return;
     }
 
-    const { inner, span } = walkRange();
+    // In the grid the crowd lives on whichever street the player is on;
+    // on the highway approach it lives on the highway.
+    const street = inGrid(car.position.z)
+      ? currentStreet(car.position.x, car.position.z)
+      : null;
+    const centre = street ? alongOf(street, car.position.x, car.position.z) : playerS;
+    const groundY = street ? elevation(playerS) : 0;
+    const yaw = street ? alongYaw(street) : 0;
+
+    const { inner, span } = street
+      ? { inner: street.halfWidth + 0.7, span: 1.6 }
+      : walkRange();
 
     walkers.forEach((w, i) => {
       const group = groupRefs.current[i];
@@ -108,10 +132,10 @@ export function Pedestrians() {
       // Recycle out of the band. Where they walk and how fast is re-rolled;
       // what they are wearing is not, since that is a React prop and
       // changing it would re-render the tree mid-drive for no visible gain.
-      const relative = w.s - playerS;
+      const relative = w.s - centre;
       if (relative > AHEAD || relative < -BEHIND) {
         const side = Math.random() < 0.5 ? -1 : 1;
-        w.s = relative > AHEAD ? playerS - BEHIND : playerS + AHEAD;
+        w.s = relative > AHEAD ? centre - BEHIND : centre + AHEAD;
         w.u = side * (inner + Math.random() * span);
         w.direction = Math.random() < 0.5 ? 1 : -1;
         w.speed = 1.1 + Math.random() * 0.6;
@@ -133,9 +157,15 @@ export function Pedestrians() {
         w.stride += (w.speed / 0.75) * dt;
       }
 
-      roadPoint(w.u, w.s, scratch.p);
-      group.position.set(scratch.p.x, scratch.p.y + lift, scratch.p.z);
-      group.rotation.y = roadYaw(w.s) + (w.direction > 0 ? 0 : Math.PI);
+      if (street) {
+        const [px, pz] = streetPoint(street, w.s, w.u);
+        group.position.set(px, groundY + lift, pz);
+        group.rotation.y = yaw + (w.direction > 0 ? 0 : Math.PI);
+      } else {
+        roadPoint(w.u, w.s, scratch.p);
+        group.position.set(scratch.p.x, scratch.p.y + lift, scratch.p.z);
+        group.rotation.y = roadYaw(w.s) + (w.direction > 0 ? 0 : Math.PI);
+      }
 
       // Swing the limbs. Arms oppose the leg on the same side, which is the
       // detail that makes a walk cycle read even at this level of detail.

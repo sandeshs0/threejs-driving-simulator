@@ -4,6 +4,7 @@ import { groundY, roadPoint, roadYaw } from "./road";
 import { biomeForChunk, type Biome } from "./biomes";
 import { featureForChunk, suppressesScatter, type ChunkFeature } from "./roadFeatures";
 import { cityness, type Stage } from "./journey";
+import { inJunction } from "./junction";
 
 /** One placed prop, in world space (chunks are not transformed). */
 export interface ScatterItem {
@@ -66,6 +67,8 @@ export function generateScatter(index: number): ChunkScatter {
       for (let i = 0; i < count; i++) {
         const u = side * (roadHalfWidth() + minDist + rng() * (maxDist - minDist));
         const s = sStart + rng() * L;
+        // The Kalanki cut is not ground to plant anything in.
+        if (inJunction(s)) continue;
         roadPoint(u, s, p);
         items.push({
           x: p.x,
@@ -85,6 +88,7 @@ export function generateScatter(index: number): ChunkScatter {
   const posts: ScatterItem[] = [];
   const postSpacing = 20;
   for (let s = sStart; s < sStart + L && !built; s += postSpacing) {
+    if (inJunction(s)) continue;
     for (const side of [-1, 1]) {
       const u = side * (roadHalfWidth() + 0.6);
       roadPoint(u, s, p);

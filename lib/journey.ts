@@ -62,6 +62,32 @@ export const PLACE_NAMES: Record<Stage, string> = {
 export const CHECKPOST_S = at(3040);
 
 /**
+ * Kalanki chowk, where the highway from Thankot meets the Ring Road.
+ *
+ * The Ring Road passes *under* the junction here — Nepal's first underpass,
+ * 800 m and four lanes, running Bafal to Khasibazar — so the highway stays
+ * at grade and the player drives over the top of it. See
+ * components/road/KalankiJunction.
+ */
+export const KALANKI_S = at(3900);
+
+/**
+ * Where the world stops being a corridor and becomes a street network.
+ *
+ * Past this the player is free to turn off the highway and explore, so it
+ * has to clear two things: the point where `cityness` reaches 1 (below
+ * that the road still sways, and the grid can only align to a straight
+ * highway), and the whole Kalanki apron, which is hand-built and must not
+ * have lattice streets laid over it.
+ *
+ * Snapped up to a multiple of the render tile size so tiles line up with
+ * it exactly — 120 is also a multiple of the chunk length, so the corridor
+ * hands over on a chunk boundary too.
+ */
+export const GRID_START_S =
+  Math.ceil((ROUTE.descentEnd + at(700)) / 120) * 120;
+
+/**
  * The route as a list of places, for the map and the progress bar.
  *
  * `s` is where the marker sits; the drive is "finished" at the last one,
@@ -81,7 +107,7 @@ export const WAYPOINTS: Waypoint[] = [
   { s: ROUTE.tunnelEnd, name: "Nagdhunga · east portal", kind: "tunnel" },
   { s: CHECKPOST_S, name: "Thankot checkpost", kind: "checkpost" },
   { s: ROUTE.descentEnd, name: "Thankot bazaar", kind: "district" },
-  { s: at(3900), name: "Kalanki chowk", kind: "district" },
+  { s: KALANKI_S, name: "Kalanki chowk", kind: "district" },
   { s: at(4400), name: "Kalimati", kind: "district" },
   { s: at(4900), name: "Tripureshwor", kind: "district" },
   { s: at(5400), name: "Ratna Park", kind: "finish" },
@@ -162,11 +188,19 @@ export function mountainness(s: number): number {
 /**
  * How twisty the road is, 0→1.
  * Full switchbacks in the hills; nearly straight through the bore, where
- * a tight sweep would look wrong and crowd the arch; calm grid streets in
+ * a tight sweep would look wrong and crowd the arch; and dead straight in
  * the city.
+ *
+ * Exactly zero, not nearly — that is load-bearing. Once `cityness` reaches
+ * 1 this returns 0, so `centerX` returns 0 and the highway becomes the line
+ * x = 0 running down -Z. The whole valley floor is then axis-aligned with
+ * the world, which is what lets `cityGrid.ts` be an analytic lattice of
+ * streets instead of a set of baked meshes bent along a curve. Leave even a
+ * few metres of sway in and every junction in Kathmandu is a curved
+ * intersection that has to be solved numerically.
  */
 export function swayScale(s: number): number {
-  const base = 1 - 0.85 * cityness(s);
+  const base = 1 - cityness(s);
   const throughTunnel = hump(
     s,
     ROUTE.tunnelStart - at(220),
@@ -195,7 +229,11 @@ const PROFILE: { s: number; y: number }[] = [
   { s: ROUTE.tunnelEnd, y: at(190) },
   { s: at(3100), y: at(150) },
   { s: ROUTE.descentEnd, y: at(118) },
-  { s: at(4600), y: at(112) },
+  // Dead level from here on. The street grid puts roads hundreds of metres
+  // off the highway and they all have to meet at one height; two equal
+  // control points is how the profile is told to stop moving.
+  { s: GRID_START_S, y: at(112) },
+  { s: GRID_START_S + 2000, y: at(112) },
 ];
 
 export function baseElevation(s: number): number {

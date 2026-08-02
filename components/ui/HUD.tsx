@@ -78,9 +78,29 @@ export function HUD() {
         )}
       </div>
 
-      {/* Where you are on the route, and the current viewpoint */}
+      {/* Where you are. In the city that means the street you are on and
+          the next one crossing it — the district alone is no use once you
+          can turn off the main road. */}
       <div className="pointer-events-none fixed top-6 left-6 select-none [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-        <div className="text-lg font-medium text-white/90">{hud.place}</div>
+        {hud.street ? (
+          <>
+            <div className="text-lg font-medium text-white/90">{hud.street}</div>
+            <div className="mt-0.5 text-sm text-white/55">
+              {hud.place}
+              {hud.junction && (
+                <>
+                  {" · "}
+                  <span className="text-white/75">{hud.junction}</span>{" "}
+                  <span className="tabular-nums">
+                    {distanceLabel(hud.junctionDistance)}
+                  </span>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="text-lg font-medium text-white/90">{hud.place}</div>
+        )}
         <div className="mt-0.5 text-sm text-white/55">
           {CAMERA_MODE_NAMES[cameraMode]} view
         </div>

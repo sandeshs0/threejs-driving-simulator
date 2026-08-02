@@ -47,20 +47,29 @@ const OUTFITS: [string, string, string][] = [
 const TOPI = "#e6dfcd";
 const HAIR = "#1b1614";
 
+/** top / bottom / skin, when a caller wants a specific uniform. */
+export type Palette = [string, string, string];
+
 export function Person({
   outfit = 0,
   hat = false,
   pose = "stand",
   scale = 1,
+  palette,
+  cap,
   limbs,
 }: {
   outfit?: number;
   hat?: boolean;
   pose?: "stand" | "squat";
   scale?: number;
+  /** Overrides `outfit` — used for uniforms, which are not a random roll. */
+  palette?: Palette;
+  /** A peaked cap instead of a dhaka topi. Colour of the cap. */
+  cap?: string;
   limbs?: RefObject<Limbs>;
 }) {
-  const [top, bottom, skin] = OUTFITS[outfit % OUTFITS.length];
+  const [top, bottom, skin] = palette ?? OUTFITS[outfit % OUTFITS.length];
 
   // Squatting outside a shop is its own posture, not a shorter standing
   // one: the whole body drops and the thighs come forward.
@@ -134,11 +143,30 @@ export function Person({
           <boxGeometry args={[0.22, 0.08, 0.21]} />
           <meshLambertMaterial color={HAIR} />
         </mesh>
-        {hat && (
+        {hat && !cap && (
           <mesh position={[0, 1.77, 0]}>
             <cylinderGeometry args={[0.12, 0.13, 0.11, 10]} />
             <meshLambertMaterial color={TOPI} />
           </mesh>
+        )}
+        {cap && (
+          <group position={[0, 1.76, 0]}>
+            {/* Crown */}
+            <mesh>
+              <cylinderGeometry args={[0.125, 0.125, 0.11, 12]} />
+              <meshLambertMaterial color={cap} />
+            </mesh>
+            {/* Peak, out over the eyes */}
+            <mesh position={[0, -0.05, -0.12]} rotation-x={-0.16}>
+              <boxGeometry args={[0.24, 0.02, 0.16]} />
+              <meshLambertMaterial color={cap} />
+            </mesh>
+            {/* Cap band */}
+            <mesh position={[0, -0.05, 0]}>
+              <cylinderGeometry args={[0.128, 0.128, 0.035, 12]} />
+              <meshLambertMaterial color="#12172e" />
+            </mesh>
+          </group>
         )}
       </group>
     </group>

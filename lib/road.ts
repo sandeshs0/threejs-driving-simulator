@@ -6,6 +6,7 @@ import {
   swayScale,
   terracing,
 } from "./journey";
+import { underpassDepthAt } from "./junction";
 import { mountainMass, ravineDepth } from "./roadFeatures";
 
 /**
@@ -134,6 +135,8 @@ const smoothstep = (t: number) => {
  *  - a hillside around the tunnel portals
  *  - the gorge under a bridge, applied everywhere including the corridor,
  *    since the whole ground must drop away beneath the deck
+ *  - the Ring Road cut at Kalanki, for the same reason: the highway keeps
+ *    its own surface and the ground beneath it becomes an underpass
  */
 export function groundY(x: number, z: number): number {
   const s = sFromZ(z);
@@ -147,7 +150,12 @@ export function groundY(x: number, z: number): number {
   const urban = cityness(s);
 
   // City ground is a flat valley floor; hills keep their relief.
-  const relief = hills(x, z) * nearFade * t.amplitude * (1 - 0.85 * urban);
+  //
+  // Dead flat in the city, again on purpose: the street grid puts roads
+  // hundreds of metres off the highway, and they all have to meet at the
+  // same level. Any residual relief and a side street a block away is a
+  // hillside the car climbs for no reason.
+  const relief = hills(x, z) * nearFade * t.amplitude * (1 - urban);
   let y =
     elevation(s) +
     relief +
@@ -163,7 +171,7 @@ export function groundY(x: number, z: number): number {
     y = y * (1 - terrace) + stepped * terrace;
   }
 
-  return y - ravineDepth(s);
+  return y - ravineDepth(s) - underpassDepthAt(u, s);
 }
 
 /** True when a lateral offset is on the paved surface. */

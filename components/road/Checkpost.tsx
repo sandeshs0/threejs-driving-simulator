@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { roadHalfWidth } from "@/lib/config";
 import { elevation, roadPoint, roadYaw } from "@/lib/road";
+import { Policeman } from "@/components/city/Policeman";
 
 /**
  * Checkpost
@@ -13,7 +14,8 @@ import { elevation, roadPoint, roadYaw } from "@/lib/road";
  * moment the drive changes character: the hill road ends, the barriers go
  * up, and the next thing is city. So it is built as a gateway — a gantry
  * across the carriageway with a welcome board on it, a booth on each side,
- * a raised barrier arm, and the flag.
+ * a raised barrier arm, the flag, and Nepal Police on duty either side of
+ * the road, waving traffic through.
  *
  * Positioned from the road curve like everything else, so it bends with the
  * road and sits on the true surface rather than being dropped in flat.
@@ -123,6 +125,26 @@ export function Checkpost({ s }: { s: number }) {
           </group>
         </group>
       ))}
+
+      {/*
+        ---- Nepal Police on duty ----
+        One out in the carriageway waving vehicles through — the reason the
+        barriers being up does not mean nobody is checking — one at each
+        booth window, and one standing off on the shoulder.
+
+        Each is rotated to face across the road rather than along it, since
+        an officer facing the same way as the traffic is an officer with his
+        back to it.
+      */}
+      <group position={at(-(edge - 1.2), -6)} rotation={[0, rot + 1.5, 0]}>
+        <Policeman duty="direct" />
+      </group>
+      <group position={at(-(edge + 1.1), 1)} rotation={[0, rot + 2.4, 0]}>
+        <Policeman duty="stand" />
+      </group>
+      <group position={at(edge + 1.2, 4)} rotation={[0, rot - 1.9, 0]}>
+        <Policeman duty="direct" phase={1.7} />
+      </group>
 
       {/* ---- Flagpole ---- */}
       <group position={at(-(edge + 5), 6)} rotation={[0, rot, 0]}>

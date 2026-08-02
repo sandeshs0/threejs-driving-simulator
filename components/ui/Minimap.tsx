@@ -3,7 +3,23 @@
 import { useEffect, useRef } from "react";
 import { CONFIG, roadHalfWidth } from "@/lib/config";
 import { generateCity, type CityLayout } from "@/lib/city";
-import { ROUTE_END, WAYPOINTS, cityness, type Waypoint } from "@/lib/journey";
+import {
+  KALANKI_S,
+  ROUTE_END,
+  WAYPOINTS,
+  cityness,
+  type Waypoint,
+} from "@/lib/journey";
+import { JUNCTION, UNDERPASS_HALF_WIDTH } from "@/lib/junction";
+import {
+  TILE,
+  avenuesBetween,
+  crossesBetween,
+  currentStreet,
+  inGrid,
+  locate,
+} from "@/lib/cityGrid";
+import { generateTile } from "@/lib/cityBlocks";
 import { centerX, roadPoint, sFromZ } from "@/lib/road";
 import { useGame } from "@/stores/useGame";
 
@@ -46,26 +62,31 @@ const COLORS = {
 };
 
 /**
- * Building footprints for the chunks near the player.
+ * Building footprints near the player.
  *
- * `generateCity` is deterministic but not free, and the map wants the same
- * chunks the world is already showing, so results are memoised by index and
+ * The generators are deterministic but not free, and the map wants the same
+ * blocks the world is already showing, so results are memoised by key and
  * the cache trimmed whenever it outgrows the window it can possibly need.
+ * Corridor chunks and grid tiles share one cache under distinct key spaces.
  */
-const cityCache = new Map<number, CityLayout>();
-function cityFor(index: number): CityLayout {
-  let layout = cityCache.get(index);
+const cityCache = new Map<string, CityLayout>();
+function cached(key: string, build: () => CityLayout): CityLayout {
+  let layout = cityCache.get(key);
   if (!layout) {
-    layout = generateCity(index);
-    cityCache.set(index, layout);
-    if (cityCache.size > 96) {
+    layout = build();
+    cityCache.set(key, layout);
+    if (cityCache.size > 160) {
       // Drop the oldest half — insertion order is iteration order here.
-      const keys = [...cityCache.keys()].slice(0, 48);
-      for (const k of keys) cityCache.delete(k);
+      for (const k of [...cityCache.keys()].slice(0, 80)) cityCache.delete(k);
     }
   }
   return layout;
 }
+
+const cityFor = (index: number) =>
+  cached(`c${index}`, () => generateCity(index));
+const tileFor = (i: number, j: number) =>
+  cached(`t${i}:${j}`, () => generateTile(i, j));
 
 export function Minimap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -210,12 +231,23 @@ function drawRadar(
 
   const from = playerS - range * 0.9;
   const to = playerS + range * 1.5;
+  const city = inGrid(car.position.z);
 
-  drawRoadBand(ctx, from, to, 6);
-  if (urban > 0.15) drawBuildings(ctx, from, to);
-  drawRouteLine(ctx, playerS, to, 3 / scale);
+  if (city) {
+    // In the network the radar draws the streets around you in every
+    // direction — the whole point of it, once you can turn off the highway.
+    drawGrid(ctx, car.position.x, car.position.z, range);
+    drawGridBuildings(ctx, car.position.x, car.position.z, range);
+  } else {
+    drawRoadBand(ctx, from, to, 6);
+    if (from < KALANKI_S && to > KALANKI_S) drawRingRoad(ctx);
+    if (urban > 0.15) drawBuildings(ctx, from, to);
+    drawRouteLine(ctx, playerS, to, 3 / scale);
+  }
 
   ctx.restore();
+
+  if (city) drawStreetLabels(ctx, cx, cy, radius, car, scale);
 
   // Traffic, drawn unrotated at rotated positions so the blips stay legible.
   for (const blip of blips) {
@@ -299,6 +331,156 @@ function drawRouteLine(
   ctx.globalAlpha = 1;
 }
 
+/**
+ * The Ring Road crossing at Kalanki.
+ *
+ * Drawn in world space like everything else on the radar: the Ring Road
+ * runs along the highway's lateral axis at the junction, so sampling
+ * `roadPoint(t, KALANKI_S)` across a range of `t` walks straight down it.
+ *
+ * The stretch that is actually below ground is drawn hollow rather than
+ * solid — the same convention a satnav uses for a tunnel, and here it is
+ * the one thing that tells you this junction is grade-separated.
+ */
+function drawRingRoad(ctx: CanvasRenderingContext2D) {
+  const end = JUNCTION.rampEnd;
+  const a = roadPoint(-end, KALANKI_S);
+  const b = roadPoint(end, KALANKI_S);
+
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.z);
+  ctx.lineTo(b.x, b.z);
+  ctx.strokeStyle = COLORS.road;
+  ctx.lineWidth = UNDERPASS_HALF_WIDTH * 2;
+  ctx.stroke();
+
+  // The covered section, hatched.
+  const covered = JUNCTION.flatRun;
+  const c = roadPoint(-covered, KALANKI_S);
+  const d = roadPoint(covered, KALANKI_S);
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.z);
+  ctx.lineTo(d.x, d.z);
+  ctx.strokeStyle = COLORS.roadEdge;
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/**
+ * The street network around a point.
+ *
+ * Every street in range is drawn as a stroked line of its real width, so
+ * main roads read as main roads and a Gali reads as a lane. Because the
+ * grid is analytic, "every street in range" is two integer loops — there is
+ * no geometry to walk and nothing to cull.
+ */
+function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  z: number,
+  range: number
+) {
+  const s = -z;
+  const avenues = avenuesBetween(x - range, x + range);
+  const crosses = crossesBetween(s - range, s + range);
+
+  ctx.lineCap = "butt";
+
+  // Avenues run along z, cross streets along x. Drawn in two passes with
+  // the wider main roads last, so junctions look connected rather than
+  // stitched.
+  for (const pass of [false, true]) {
+    ctx.strokeStyle = pass ? "#3c4045" : COLORS.road;
+    for (const av of avenues) {
+      if (av.main !== pass) continue;
+      ctx.lineWidth = av.halfWidth * 2;
+      ctx.beginPath();
+      ctx.moveTo(av.coord, z - range * 1.4);
+      ctx.lineTo(av.coord, z + range * 1.4);
+      ctx.stroke();
+    }
+    for (const cr of crosses) {
+      if (cr.main !== pass) continue;
+      ctx.lineWidth = cr.halfWidth * 2;
+      ctx.beginPath();
+      ctx.moveTo(x - range * 1.4, cr.coord);
+      ctx.lineTo(x + range * 1.4, cr.coord);
+      ctx.stroke();
+    }
+  }
+}
+
+/** Block footprints from the same tiles the world is rendering. */
+function drawGridBuildings(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  z: number,
+  range: number
+) {
+  const s = -z;
+  const i0 = Math.floor((x - range) / TILE);
+  const i1 = Math.floor((x + range) / TILE);
+  const j0 = Math.floor((s - range) / TILE);
+  const j1 = Math.floor((s + range) / TILE);
+
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      for (const b of tileFor(i, j).buildings) {
+        ctx.save();
+        ctx.translate(b.x, b.z);
+        ctx.rotate(-b.rot);
+        ctx.fillStyle = b.floors > 4 ? COLORS.buildingRoof : COLORS.building;
+        // Footprint runs `width` along the street and `depth` across it,
+        // which after the rotation are canvas x and y respectively.
+        ctx.fillRect(-b.depth / 2, -b.width / 2, b.depth, b.width);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+/**
+ * Street names on the radar.
+ *
+ * Drawn *after* the transform is popped and rotated back upright, because a
+ * name that rotates with the map is a name you cannot read at a glance —
+ * which is the only reason to have it there.
+ */
+function drawStreetLabels(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  car: Car,
+  scale: number
+) {
+  const { x, z } = car.position;
+  const s = -z;
+  const reach = radius / scale;
+
+  ctx.font = "600 9px system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const label = (wx: number, wz: number, text: string) => {
+    const [px, py] = rotate((wx - x) * scale, (wz - z) * scale, car.yaw);
+    if (Math.hypot(px, py) > radius - 14) return;
+    ctx.fillText(text, cx + px, cy + py);
+  };
+
+  // Only the main roads get names — labelling every lane would bury the map.
+  for (const av of avenuesBetween(x - reach, x + reach)) {
+    if (av.main) label(av.coord, z, av.name);
+  }
+  for (const cr of crossesBetween(s - reach, s + reach)) {
+    if (cr.main) label(x, cr.coord, cr.name);
+  }
+}
+
 /** Building footprints for whatever chunks the visible range touches. */
 function drawBuildings(
   ctx: CanvasRenderingContext2D,
@@ -337,6 +519,14 @@ function drawRouteMap(
   height: number,
   car: Car
 ) {
+  // Once you are in the city, a 3 km route line is the wrong map — you
+  // already know you got here. What you need is a street map of where you
+  // are standing, so that is what Tab gives you.
+  if (inGrid(car.position.z)) {
+    drawCityMap(ctx, width, height, car);
+    return;
+  }
+
   const padding = 46;
   const tail = 700; // a little of the city past the last waypoint
   const end = ROUTE_END + tail;
@@ -391,6 +581,21 @@ function drawRouteMap(
   ctx.lineWidth = 3;
   ctx.stroke();
 
+  // The Ring Road crossing at Kalanki, so the one junction on the route
+  // that is actually a junction looks like one.
+  {
+    const a = roadPoint(-JUNCTION.rampEnd, KALANKI_S);
+    const b = roadPoint(JUNCTION.rampEnd, KALANKI_S);
+    const [ax, ay] = toScreen(a.x, a.z);
+    const [bx, by] = toScreen(b.x, b.z);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = "#7d838a";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
   // Waypoints, with names — this is the map you actually read.
   ctx.font = "12px system-ui, sans-serif";
   ctx.textBaseline = "middle";
@@ -427,6 +632,169 @@ function drawRouteMap(
   ctx.font = "11px system-ui, sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.fillText("1 km", 20, height - 34);
+}
+
+/**
+ * The city street map: north-up, centred on the player, ~900 m across.
+ *
+ * This is the one that has to actually work for navigation, so it names
+ * every main road, marks the junctions, and keeps the player's own street
+ * highlighted — you should be able to look at it, pick a turning, and find
+ * it. The grid being analytic is what makes labelling cheap: the names come
+ * straight off the line indices.
+ */
+function drawCityMap(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  car: Car
+) {
+  const reach = 460;
+  const scale = Math.min(width, height) / (reach * 2);
+  const { x: px, z: pz } = car.position;
+  const s = -pz;
+
+  const toScreen = (wx: number, wz: number): [number, number] => [
+    width / 2 + (wx - px) * scale,
+    height / 2 + (wz - pz) * scale,
+  ];
+
+  ctx.fillStyle = "#23261f";
+  ctx.fillRect(0, 0, width, height);
+
+  const avenues = avenuesBetween(px - reach, px + reach);
+  const crosses = crossesBetween(s - reach, s + reach);
+  const here = currentStreet(px, pz);
+
+  // Blocks first, so the streets sit on top of them.
+  const i0 = Math.floor((px - reach) / TILE);
+  const i1 = Math.floor((px + reach) / TILE);
+  const j0 = Math.floor((s - reach) / TILE);
+  const j1 = Math.floor((s + reach) / TILE);
+  ctx.fillStyle = "rgba(150,142,124,0.30)";
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      for (const b of tileFor(i, j).buildings) {
+        const [bx, by] = toScreen(b.x, b.z);
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(-b.rot);
+        ctx.fillRect(
+          (-b.depth / 2) * scale,
+          (-b.width / 2) * scale,
+          b.depth * scale,
+          b.width * scale
+        );
+        ctx.restore();
+      }
+    }
+  }
+
+  // Streets. The one under the player is picked out, which is what turns a
+  // lattice of identical lines into "you are here".
+  const strokeStreet = (
+    from: [number, number],
+    to: [number, number],
+    lineWidth: number,
+    highlighted: boolean
+  ) => {
+    ctx.beginPath();
+    ctx.moveTo(...from);
+    ctx.lineTo(...to);
+    ctx.strokeStyle = highlighted ? COLORS.route : "#5a5f66";
+    ctx.lineWidth = Math.max(1.5, lineWidth * scale);
+    ctx.stroke();
+  };
+
+  for (const av of avenues) {
+    strokeStreet(
+      toScreen(av.coord, pz - reach),
+      toScreen(av.coord, pz + reach),
+      av.halfWidth * 2,
+      here?.kind === "avenue" && here.index === av.index
+    );
+  }
+  for (const cr of crosses) {
+    strokeStreet(
+      toScreen(px - reach, cr.coord),
+      toScreen(px + reach, cr.coord),
+      cr.halfWidth * 2,
+      here?.kind === "cross" && here.index === cr.index
+    );
+  }
+
+  // Names, along the street they belong to.
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.textBaseline = "middle";
+  for (const av of avenues) {
+    if (!av.main) continue;
+    const [lx, ly] = toScreen(av.coord, pz - reach * 0.72);
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.fillText(av.name, 0, -6);
+    ctx.restore();
+  }
+  for (const cr of crosses) {
+    if (!cr.main) continue;
+    const [lx, ly] = toScreen(px - reach * 0.72, cr.coord);
+    ctx.textAlign = "center";
+    ctx.fillText(cr.name, lx, ly - 7);
+  }
+
+  // Route waypoints that fall on this sheet.
+  for (const w of WAYPOINTS) {
+    const wp = roadPoint(0, w.s);
+    if (Math.abs(wp.z - pz) > reach || Math.abs(wp.x - px) > reach) continue;
+    const [wx, wy] = toScreen(wp.x, wp.z);
+    drawWaypointPin(ctx, wx, wy, w, 7);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(w.name, wx + 11, wy);
+  }
+
+  drawPlayerArrow(ctx, width / 2, height / 2, car.yaw, 10);
+
+  // Header: the street you are on, and the next crossing.
+  const where = locate(px, pz);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = "600 15px system-ui, sans-serif";
+  ctx.fillText(where.street, 20, 26);
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillText(
+    where.atJunction
+      ? `at ${where.junction}`
+      : `${where.junction} in ${Math.round(where.junctionDistance)} m`,
+    20,
+    46
+  );
+
+  // Scale bar.
+  const barPx = 200 * scale;
+  ctx.strokeStyle = "rgba(255,255,255,0.65)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(20, height - 24);
+  ctx.lineTo(20 + barPx, height - 24);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillText("200 m", 20, height - 34);
+
+  // North, since this sheet is north-up and the radar is not.
+  ctx.textAlign = "center";
+  ctx.font = "bold 13px system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillText("N", width - 28, 24);
+  ctx.beginPath();
+  ctx.moveTo(width - 28, 34);
+  ctx.lineTo(width - 28, 52);
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.stroke();
 }
 
 // --------------------------------------------------------------- markers

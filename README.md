@@ -42,10 +42,14 @@ components/Experience   composition root: canvas, physics, systems
   road/TunnelStructure  swept concrete bore with portals and lighting
   road/BridgeStructure  deck soffit, parapets, terrain-measured piers
   road/Checkpost        the Thankot gateway into the valley
+  road/KalankiJunction  the chowk and the Ring Road underpass beneath it
+  city/Policeman        Nepal Police, on the barrier and directing traffic
   traffic/Traffic       pooled AI vehicles + the collision pass
   city/CityChunk        buildings, shops, temples for one block
   city/StreetLife       carts, parked bikes, bystanders, cows, prayer flags
   city/Pedestrians      pooled walking figures with a real gait
+  city/CityGridManager  sliding square of street tiles around the player
+  city/StreetTile       one square of city: ground, carriageways, frontages
   environment/          biome scenery + sky, sun, fog
   audio/AudioSystem     synthesizer lifecycle
   ui/                   HUD, radar + route map, start overlay, Leva panel
@@ -56,6 +60,9 @@ lib/
   ribbon.ts             curved-strip and swept-profile geometry builders
   collision.ts          OBB separating-axis test + two-body impulse response
   journey.ts            route signals, waypoints, progress and place names
+  junction.ts           the Kalanki underpass cut, as a terrain function
+  cityGrid.ts           the street network: analytic lattice + containment
+  cityBlocks.ts         what stands along each street, per tile
   city.ts               deterministic Kathmandu street layout
   biomes.ts             biome table and cross-fading
   scatter.ts            deterministic prop placement
@@ -73,7 +80,37 @@ Dhading  bridge bridge tunnel      checkpost Thankot Kalanki  Kalimati   Ratna
                                                           Tripureshwor  Park
 ```
 
-Two river bridges in the hills, the Nagdhunga tunnel through the valley rim, the Thankot checkpost on the far side — a gantry, booths, raised barriers and the flag, which is the moment the drive changes character — then the city, which continues indefinitely, so the world is still infinite.
+Two river bridges in the hills, the Nagdhunga tunnel through the valley rim, the Thankot checkpost on the far side — a gantry, booths, raised barriers, the flag and Nepal Police waving traffic through, which is the moment the drive changes character — then Kalanki chowk, then the city, which continues indefinitely, so the world is still infinite.
+
+### Kalanki chowk
+
+The Ring Road passes **under** the junction here. Nepal's first underpass — 800 m, four lanes, opened 2018 — runs Bafal to Khasibazar, which leaves the Tribhuvan Highway at grade over the top on its way to Kalimati. So the player crosses on the deck and watches the Ring Road drop away into the cut on both sides; surface lanes flank the trench for everything that is turning rather than passing through. Building it the other way round — the player driving *into* the underpass — would be a different junction entirely.
+
+The cut is real geometry, not a painted backdrop: `lib/junction.ts` subtracts `underpassDepth` from `groundY` exactly as a bridge's gorge is subtracted, so the terrain genuinely falls away beneath the deck. That is also why the city generator and the prop scatter both consult `inJunction(s)` — everything they place is positioned from `elevation(s)`, which knows nothing about the trench, so a shopfront left inside the footprint would hang six metres over open air.
+
+### The city is a network, not a corridor
+
+Up to Kalanki the world is one curve and the car is held on it. That is the right model for a highway through the hills and the wrong one for a city — you cannot explore a line. Past `GRID_START_S` the world becomes two-dimensional and you can turn off the highway, take any junction and get lost.
+
+`lib/cityGrid.ts` is a **lattice, not a mesh**, in the same spirit as `road.ts`. Streets are defined by arithmetic — avenues at constant x, cross streets at constant z, each nudged by a deterministic jitter — so every question about them is answered in constant time from a position, with no spatial index and nothing baked. "Which street am I on", "am I on a street at all", "where is the next junction" and "what should this tile draw" are all the same two divisions.
+
+Three things had to become exactly true for that to work, and each is load-bearing:
+
+- **`swayScale` goes to exactly 0** once `cityness` reaches 1, so the highway becomes the line x = 0 and the valley floor is axis-aligned with the world. Leave even a few metres of sway in and every junction in Kathmandu is a curved intersection that has to be solved numerically.
+- **City relief goes to exactly 0**, because the grid puts roads hundreds of metres off the highway and they all have to meet at one height.
+- **The elevation profile gets two equal control points** past the handover, so the floor is level and tiles can be flat planes.
+
+Avenue 0 *is* the highway — same centreline, same half-width — so the handover from corridor clamp to grid containment has no seam in it.
+
+Containment is the union of the two corridors, which is what makes junctions work without any special case: at a crossing you are inside both, on a straight you are inside one, and the intersection square is simply where neither test fails. Off the network you are pushed back along one axis only, so scraping down a wall of buildings reads as sliding along a kerb rather than being sucked to a centreline.
+
+`CityGridManager` mounts a square of tiles around the player and recycles them — the two-dimensional counterpart to `RoadChunkManager`. The difference matters: a corridor only needs chunks ahead and behind, so its window is a range; a city has to be explorable in any direction, so the window is an area. Past the handover `RoadChunk` returns null entirely and the grid owns the ground, the carriageways and everything built along them.
+
+Blocks are filled by **frontages, not polygons**: each street lays a row of buildings down both sides, which is how a city is actually built. A block bounded by four streets gets four frontages and a hollow middle — right for Kathmandu, where the middle of a block is courtyards. Ownership is by line: a tile furnishes the streets whose centreline falls inside it, so nothing generates twice.
+
+The map switches with the world. On the highway, Tab is a route overview; in the city it is a north-up street map centred on you, with every main road named, the street you are on picked out, and the junctions marked. The radar draws the network in all directions and labels the main roads upright, because a name that rotates with the map is a name you cannot read at a glance.
+
+`KalankiJunction` builds the whole thing in one group rotated by the road's yaw, which buys a local frame where **+X runs along the Ring Road** and **−Z is the direction of travel**. Every number in the component is then plain and axis-aligned instead of curve maths. The trench floor and its retaining walls are swept strips rather than stretched boxes, because the floor is not flat — it climbs out at about 7% at each end and the walls have to climb with it.
 
 **Length is one number.** Every distance in `journey.ts` is written at full scale — the real drive is a good 25 km — and multiplied by `ROUTE_SCALE`, currently `0.5`. Raise it for a longer haul, drop it for a shorter one; `roadFeatures.ts` reads `ROUTE` and everything else reads `WAYPOINTS`, so nothing else hard-codes a route distance.
 
