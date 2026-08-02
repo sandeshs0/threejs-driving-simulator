@@ -24,6 +24,8 @@ export const CONFIG = {
     groundSegments: 26, // lateral tessellation of the terrain
     railOffset: 0.18, // guardrail, measured out from the shoulder edge
     railHeight: 0.78,
+    kerbHeight: 0.16, // in town the rail line becomes a kerb this high
+    footpathWidth: 3.4, // pavement outward from the kerb
     // How far inside the rail the car's centre is held. Roughly half the
     // body width, so the flank stops at the barrier rather than in it.
     barrierClearance: 1.0,
@@ -71,10 +73,18 @@ export const CONFIG = {
     maxReverseSpeed: 8,
     engineAccel: 9,
     brakeDecel: 16,
-    reverseAccel: 5,
+    // Reverse has to out-pull rolling resistance *and* the off-road
+    // penalty, because reversing is exactly what you do after putting a
+    // wheel on the gravel. At 5 it did not: 5 − 0.8 − 4.2 came to precisely
+    // zero and the car simply would not back up off the asphalt.
+    reverseAccel: 7,
     dragCoef: 0.0028, // quadratic aero drag
     rollingResistance: 0.8,
-    offRoadDrag: 4.2, // extra decel when both wheels are off the asphalt
+    // Extra decel with both wheels off the asphalt, reached progressively —
+    // see offRoadResistance() for why it is not a flat penalty.
+    offRoadDrag: 4.2,
+    /** Speed (m/s) at which the off-road penalty is at full strength. */
+    offRoadDragRamp: 6,
     followDistance: 14, // start matching the speed of the car in front
     wheelBase: 2.6,
     wheelRadius: 0.34,
@@ -180,6 +190,17 @@ export const ownLaneU = () => (CONFIG.road.driveSide * CONFIG.road.laneWidth) / 
 
 /** Centre of the lane traffic comes at you in. */
 export const oncomingLaneU = () => -ownLaneU();
+
+/** Outer edge of the city footpath — where the shopfronts begin. */
+export const pavementOuter = () =>
+  roadHalfWidth() + CONFIG.road.footpathWidth;
+
+/**
+ * Height of the pavement above the road surface. Anything standing on the
+ * footpath — a pedestrian, a stall, a lamp post — has to be lifted by this
+ * or it sinks into the kerb.
+ */
+export const pavementY = () => CONFIG.road.kerbHeight + 0.03;
 
 /** Lane centre for a vehicle travelling in `direction` (+1 = with you). */
 export const laneU = (direction: number) =>

@@ -12,13 +12,68 @@ import type { Landmark } from "@/lib/city";
  *  stupa   the whitewashed dome on a stepped base, with the harmika cube
  *          above it, the tapering gilded spire, and the painted eyes that
  *          look out in all four directions.
+ *  chaitya the small stone shrine that stands on street corners all over
+ *          the city — the same form as the stupa, shrunk to two metres and
+ *          worn smooth, with marigolds and vermilion on the plinth.
  *
- * Prayer flags are strung from the finial on both.
+ * Prayer flags are strung from the finial on the two big ones.
  */
 export function Temple({ mark }: { mark: Landmark }) {
   return (
     <group position={[mark.x, mark.y, mark.z]} rotation={[0, mark.rot, 0]}>
-      {mark.kind === "pagoda" ? <Pagoda /> : <Stupa />}
+      {mark.kind === "pagoda" ? (
+        <Pagoda />
+      ) : mark.kind === "stupa" ? (
+        <Stupa />
+      ) : (
+        <Chaitya />
+      )}
+    </group>
+  );
+}
+
+/** The corner shrine: a stupa at the scale of a postbox. */
+function Chaitya() {
+  return (
+    <group>
+      {/* Stone plinth, offerings smeared across the top step */}
+      <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.5, 0.32, 1.5]} />
+        <meshLambertMaterial color="#8f8a7e" />
+      </mesh>
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[1.15, 0.22, 1.15]} />
+        <meshLambertMaterial color="#a2765c" />
+      </mesh>
+
+      {/* Dome */}
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <sphereGeometry args={[0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshLambertMaterial color="#ded8ca" />
+      </mesh>
+      {/* Harmika and spire */}
+      <mesh position={[0, 1.15, 0]} castShadow>
+        <boxGeometry args={[0.34, 0.28, 0.34]} />
+        <meshLambertMaterial color="#e2ddd0" />
+      </mesh>
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={i} position={[0, 1.36 + i * 0.13, 0]}>
+          <cylinderGeometry args={[0.14 - i * 0.025, 0.16 - i * 0.025, 0.11, 8]} />
+          <meshStandardMaterial color="#c99b2c" metalness={0.7} roughness={0.4} />
+        </mesh>
+      ))}
+      <mesh position={[0, 1.92, 0]}>
+        <sphereGeometry args={[0.09, 8, 6]} />
+        <meshStandardMaterial color="#e8bb3c" metalness={0.85} roughness={0.3} />
+      </mesh>
+
+      {/* Marigolds left on the plinth */}
+      {[-0.4, 0, 0.42].map((x, i) => (
+        <mesh key={x} position={[x, 0.56, -0.42 + i * 0.06]}>
+          <sphereGeometry args={[0.07, 6, 5]} />
+          <meshLambertMaterial color={i === 1 ? "#e0651f" : "#e8a52c"} />
+        </mesh>
+      ))}
     </group>
   );
 }

@@ -12,8 +12,9 @@ import { outwardVector } from "@/lib/city";
  * signboard facing the traffic.
  *
  * A momo pasal gets a steamer stack on the counter; a tea shop gets a
- * kettle and glasses; a general store gets stacked crates. They are one
- * component because the differences are two or three small meshes.
+ * kettle and glasses; a fruit shop gets its stock heaped in trays out
+ * front; a general store gets stacked crates. They are one component
+ * because the differences are two or three small meshes.
  */
 export function StallShop({ stall }: { stall: Stall }) {
   // Everything is laid out in the stall's local frame, then the whole
@@ -24,7 +25,13 @@ export function StallShop({ stall }: { stall: Stall }) {
   }, [stall.rot]);
 
   const counterColor =
-    stall.kind === "tea" ? "#6b4b32" : stall.kind === "momo" ? "#5f5a52" : "#5a4636";
+    stall.kind === "tea"
+      ? "#6b4b32"
+      : stall.kind === "momo"
+      ? "#5f5a52"
+      : stall.kind === "fruit"
+      ? "#6e5a3c"
+      : "#5a4636";
 
   return (
     <group
@@ -111,6 +118,37 @@ export function StallShop({ stall }: { stall: Stall }) {
               <meshLambertMaterial color="#d8cfae" />
             </mesh>
           ))}
+        </group>
+      )}
+
+      {stall.kind === "fruit" && (
+        <group position={[0, 1.02, -0.55]}>
+          {/* Sloped trays of stock, angled out toward the street so the
+              colour is what you see first — which is the entire point of
+              stacking it that way. */}
+          {[-0.75, 0, 0.75].map((x, i) => (
+            <group key={x} position={[x, 0, 0]}>
+              <mesh rotation-x={-0.3} castShadow>
+                <boxGeometry args={[0.66, 0.05, 0.5]} />
+                <meshLambertMaterial color="#7d6242" />
+              </mesh>
+              {[-0.18, 0, 0.18].map((dx, k) => (
+                <mesh key={dx} position={[dx, 0.12, -0.02]} castShadow>
+                  <sphereGeometry args={[0.1, 8, 6]} />
+                  <meshLambertMaterial
+                    color={
+                      ["#e0651f", "#d3352f", "#e8c22c", "#4f8f3a"][(i + k) % 4]
+                    }
+                  />
+                </mesh>
+              ))}
+            </group>
+          ))}
+          {/* A hand scale hanging off the awning pole */}
+          <mesh position={[1.15, 0.5, 0]}>
+            <boxGeometry args={[0.22, 0.03, 0.03]} />
+            <meshLambertMaterial color="#9a958a" />
+          </mesh>
         </group>
       )}
 

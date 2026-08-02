@@ -10,10 +10,12 @@ import { Vehicle } from "@/components/vehicle/Vehicle";
 import { CameraController } from "@/components/camera/CameraController";
 import { RoadChunkManager } from "@/components/road/RoadChunkManager";
 import { Traffic } from "@/components/traffic/Traffic";
+import { Pedestrians } from "@/components/city/Pedestrians";
 import { Atmosphere } from "@/components/environment/Atmosphere";
 import { Effects } from "@/components/effects/Effects";
 import { AudioSystem } from "@/components/audio/AudioSystem";
 import { HUD } from "@/components/ui/HUD";
+import { Minimap } from "@/components/ui/Minimap";
 import { HudBridge } from "@/components/ui/HudBridge";
 import { StartOverlay } from "@/components/ui/StartOverlay";
 import { TuningPanel } from "@/components/ui/TuningPanel";
@@ -68,6 +70,7 @@ export default function Experience() {
             <CameraController />
             <RoadChunkManager />
             <Traffic />
+            <Pedestrians />
             <Atmosphere />
             <Effects />
             <AudioSystem />
@@ -78,6 +81,7 @@ export default function Experience() {
 
       {/* DOM overlays */}
       <HUD />
+      <Minimap />
       <StartOverlay />
       <TuningPanel />
     </>

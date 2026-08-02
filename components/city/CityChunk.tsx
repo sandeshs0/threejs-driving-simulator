@@ -6,6 +6,7 @@ import { generateCity, outwardVector, type Building } from "@/lib/city";
 import { Temple } from "./Temple";
 import { StallShop } from "./StallShop";
 import { StreetFurniture } from "./StreetFurniture";
+import { StreetLife } from "./StreetLife";
 
 /**
  * CityChunk
@@ -16,7 +17,15 @@ import { StreetFurniture } from "./StreetFurniture";
  * whole street frontage costs a couple of draw calls. Window bands are a
  * second instanced pass — cheaper and more legible at speed than a
  * texture, and it keeps the low-poly language of the rest of the project.
- * Temples and stalls are ordinary groups because there are only a handful.
+ * Temples, stalls and street life are ordinary groups because there are
+ * only a handful of each.
+ *
+ * Two building styles share those passes. The modern concrete block gets
+ * dark glazing bands, a water tank and the rebar columns of a top floor
+ * that will be finished eventually. The older Newari house gets narrow
+ * carved-timber windows and an overhanging tiled roof instead — the two
+ * standing shoulder to shoulder is what a Kathmandu street actually looks
+ * like.
  */
 export function CityChunk({ index }: { index: number }) {
   const city = useMemo(() => generateCity(index), [index]);
@@ -27,16 +36,15 @@ export function CityChunk({ index }: { index: number }) {
    * normal so they sit on the face that looks at the road.
    */
   const facades = useMemo(() => {
-    const windows: {
+    type Piece = {
       pos: [number, number, number];
       rot: number;
       scale: [number, number, number];
-    }[] = [];
-    const awnings: {
-      pos: [number, number, number];
-      rot: number;
-      scale: [number, number, number];
-    }[] = [];
+    };
+    const windows: Piece[] = [];
+    const timberWindows: Piece[] = [];
+    const awnings: Piece[] = [];
+    const hoardings: (Piece & { color: string })[] = [];
 
     const faceOffset = (b: Building, distance: number) => {
       const [ox, oz] = outwardVector(b.rot);
@@ -48,13 +56,34 @@ export function CityChunk({ index }: { index: number }) {
     };
 
     for (const b of city.buildings) {
+      const storey = b.height / b.floors;
       const [wx, wz] = faceOffset(b, b.depth / 2 + 0.05);
-      for (let floor = 1; floor < b.floors; floor++) {
-        windows.push({
-          pos: [wx, b.y + floor * 3.05 + 1.5, wz],
-          rot: b.rot,
-          scale: [b.width * 0.78, 1.25, 0.1],
-        });
+
+      if (b.style === "newari") {
+        // Narrow carved windows in pairs rather than one continuous band —
+        // the brick between them is most of the facade.
+        for (let floor = 1; floor < b.floors; floor++) {
+          for (const offset of [-0.26, 0.26]) {
+            const [ox, oz] = outwardVector(b.rot + Math.PI / 2);
+            timberWindows.push({
+              pos: [
+                wx + ox * b.width * offset,
+                b.y + floor * storey + 1.2,
+                wz + oz * b.width * offset,
+              ],
+              rot: b.rot,
+              scale: [b.width * 0.3, 1.1, 0.12],
+            });
+          }
+        }
+      } else {
+        for (let floor = 1; floor < b.floors; floor++) {
+          windows.push({
+            pos: [wx, b.y + floor * storey + 1.5, wz],
+            rot: b.rot,
+            scale: [b.width * 0.78, 1.25, 0.1],
+          });
+        }
       }
 
       const [ax, az] = faceOffset(b, b.depth / 2 + 0.7);
@@ -63,15 +92,27 @@ export function CityChunk({ index }: { index: number }) {
         rot: b.rot,
         scale: [b.width * 0.9, 1, 1],
       });
+
+      if (b.hoarding) {
+        // Billboard standing on the parapet, right on the street edge.
+        const [hx, hz] = faceOffset(b, b.depth / 2 - 0.2);
+        hoardings.push({
+          pos: [hx, b.y + b.height + 1.1, hz],
+          rot: b.rot,
+          scale: [b.width * 0.85, 2.0, 0.12],
+          color: b.hoardingColor,
+        });
+      }
     }
 
-    return { windows, awnings };
+    return { windows, timberWindows, awnings, hoardings };
   }, [city.buildings]);
 
   if (city.buildings.length === 0 && city.stalls.length === 0) return null;
 
   const withTank = city.buildings.filter((b) => b.tank);
   const withRebar = city.buildings.filter((b) => b.rebar);
+  const newari = city.buildings.filter((b) => b.style === "newari");
 
   return (
     <group>
@@ -99,6 +140,51 @@ export function CityChunk({ index }: { index: number }) {
           <meshLambertMaterial color="#2b3138" />
           {facades.windows.map((w, i) => (
             <Instance key={i} position={w.pos} rotation={[0, w.rot, 0]} scale={w.scale} />
+          ))}
+        </Instances>
+      )}
+
+      {/* Carved timber windows of the older brick houses */}
+      {facades.timberWindows.length > 0 && (
+        <Instances limit={facades.timberWindows.length}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshLambertMaterial color="#3a2617" />
+          {facades.timberWindows.map((w, i) => (
+            <Instance key={i} position={w.pos} rotation={[0, w.rot, 0]} scale={w.scale} />
+          ))}
+        </Instances>
+      )}
+
+      {/* Overhanging tiled roofs on those same houses — the one silhouette
+          that separates old Kathmandu from the concrete around it. */}
+      {newari.length > 0 && (
+        <Instances limit={newari.length} castShadow>
+          <boxGeometry args={[1, 0.22, 1]} />
+          <meshLambertMaterial color="#7d3527" />
+          {newari.map((b, i) => (
+            <Instance
+              key={i}
+              position={[b.x, b.y + b.height + 0.11, b.z]}
+              rotation={[0, b.rot, 0]}
+              scale={[b.width + 1.1, 1, b.depth + 1.1]}
+            />
+          ))}
+        </Instances>
+      )}
+
+      {/* Rooftop hoardings, all shouting over each other at the street */}
+      {facades.hoardings.length > 0 && (
+        <Instances limit={facades.hoardings.length} castShadow>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshLambertMaterial />
+          {facades.hoardings.map((h, i) => (
+            <Instance
+              key={i}
+              position={h.pos}
+              rotation={[0, h.rot, 0]}
+              scale={h.scale}
+              color={h.color}
+            />
           ))}
         </Instances>
       )}
@@ -161,6 +247,7 @@ export function CityChunk({ index }: { index: number }) {
       ))}
 
       <StreetFurniture city={city} />
+      <StreetLife city={city} />
     </group>
   );
 }

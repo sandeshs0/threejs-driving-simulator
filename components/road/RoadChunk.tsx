@@ -12,7 +12,9 @@ import { BridgeStructure } from "./BridgeStructure";
 import { Guardrail } from "./Guardrail";
 import { Footpath } from "./Footpath";
 import { CityChunk } from "@/components/city/CityChunk";
+import { Checkpost } from "./Checkpost";
 import { featureSpan } from "@/lib/roadFeatures";
+import { CHECKPOST_S } from "@/lib/journey";
 
 /**
  * RoadChunk
@@ -148,6 +150,10 @@ export function RoadChunk({ index }: { index: number }) {
       {span && scatter.feature.kind === "bridge" && (
         <BridgeStructure sStart={span.from} sEnd={span.to} />
       )}
+
+      {/* The Thankot checkpost, wherever the route puts it. One chunk owns
+          it — the one its road distance falls inside. */}
+      {CHECKPOST_S >= sStart && CHECKPOST_S < sEnd && <Checkpost s={CHECKPOST_S} />}
 
       {/* Kathmandu */}
       {scatter.urban > 0.05 && <CityChunk index={index} />}

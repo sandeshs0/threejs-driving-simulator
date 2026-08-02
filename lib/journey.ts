@@ -5,7 +5,7 @@
  * Dhading hills up the Prithvi Highway, through the Nagdhunga tunnel, and
  * down into Kathmandu.
  *
- *   0 m ──────── 2400 ── 2750 ────── 3400 ─────────────▶
+ *   0 m ──────── 1200 ── 1375 ────── 1700 ─────────────▶
  *     hill road    tunnel   descent      Kathmandu (forever)
  *
  * Everything that varies along the route — how twisty the road is, how
@@ -21,14 +21,33 @@
 
 export type Stage = "hills" | "tunnel" | "descent" | "city";
 
+/**
+ * Master length of the drive.
+ *
+ * Every distance in this file is written at full scale — the real thing is
+ * a good 25 km — and then multiplied by this, so the whole journey can be
+ * made longer or shorter by changing one number. Nothing else in the
+ * project hard-codes a route distance: `roadFeatures.ts` reads `ROUTE`, and
+ * the maps, progress bar and place names all read `WAYPOINTS`.
+ *
+ * Heights are scaled by the same factor (see `PROFILE`). That is the point
+ * of doing it this way rather than by hand: scaling both axes together
+ * leaves every gradient exactly as it was, so a shorter drive does not
+ * quietly become a climb the car cannot pull.
+ */
+export const ROUTE_SCALE = 0.5;
+
+/** A route distance in scaled metres. */
+const at = (metres: number) => Math.round(metres * ROUTE_SCALE);
+
 export const ROUTE = {
-  tunnelStart: 2400,
-  tunnelEnd: 2750,
-  descentEnd: 3400,
+  tunnelStart: at(2400),
+  tunnelEnd: at(2750),
+  descentEnd: at(3400),
   /** River crossings in the hill section. */
   bridges: [
-    { from: 820, to: 940 },
-    { from: 1680, to: 1800 },
+    { from: at(820), to: at(940) },
+    { from: at(1680), to: at(1800) },
   ],
 };
 
@@ -40,7 +59,7 @@ export const PLACE_NAMES: Record<Stage, string> = {
 };
 
 /** The checkpost on the Thankot side of the tunnel — everyone stops here. */
-export const CHECKPOST_S = 3040;
+export const CHECKPOST_S = at(3040);
 
 /**
  * The route as a list of places, for the map and the progress bar.
@@ -56,16 +75,16 @@ export interface Waypoint {
 
 export const WAYPOINTS: Waypoint[] = [
   { s: 0, name: "Dhading Besi", kind: "start" },
-  { s: 880, name: "Trishuli bridge", kind: "bridge" },
-  { s: 1740, name: "Mahesh Khola bridge", kind: "bridge" },
+  { s: at(880), name: "Trishuli bridge", kind: "bridge" },
+  { s: at(1740), name: "Mahesh Khola bridge", kind: "bridge" },
   { s: ROUTE.tunnelStart, name: "Nagdhunga · west portal", kind: "tunnel" },
   { s: ROUTE.tunnelEnd, name: "Nagdhunga · east portal", kind: "tunnel" },
   { s: CHECKPOST_S, name: "Thankot checkpost", kind: "checkpost" },
   { s: ROUTE.descentEnd, name: "Thankot bazaar", kind: "district" },
-  { s: 3900, name: "Kalanki chowk", kind: "district" },
-  { s: 4400, name: "Kalimati", kind: "district" },
-  { s: 4900, name: "Tripureshwor", kind: "district" },
-  { s: 5400, name: "Ratna Park", kind: "finish" },
+  { s: at(3900), name: "Kalanki chowk", kind: "district" },
+  { s: at(4400), name: "Kalimati", kind: "district" },
+  { s: at(4900), name: "Tripureshwor", kind: "district" },
+  { s: at(5400), name: "Ratna Park", kind: "finish" },
 ];
 
 /** Where the scripted journey is considered complete. */
@@ -121,15 +140,22 @@ export function stageAt(s: number): Stage {
   return "city";
 }
 
-/** 0 in the hills, 1 once fully inside Kathmandu. */
+/**
+ * 0 in the hills, 1 once fully inside Kathmandu.
+ *
+ * The blend widths are scaled along with the route. They have to be: they
+ * are what make the city thicken over a distance rather than switch on, and
+ * left at full length on a half-length route they would overlap the tunnel
+ * and start building Kathmandu inside the mountain.
+ */
 export function cityness(s: number): number {
-  return ramp(s, ROUTE.descentEnd - 500, ROUTE.descentEnd + 260);
+  return ramp(s, ROUTE.descentEnd - at(500), ROUTE.descentEnd + at(260));
 }
 
 /** 1 in the high hills, falling away as the road drops into the valley. */
 export function mountainness(s: number): number {
-  const rise = ramp(s, 0, 700); // foothills build up out of the plain
-  const fall = 1 - ramp(s, ROUTE.tunnelEnd, ROUTE.descentEnd + 200);
+  const rise = ramp(s, 0, at(700)); // foothills build up out of the plain
+  const fall = 1 - ramp(s, ROUTE.tunnelEnd, ROUTE.descentEnd + at(200));
   return Math.min(rise, fall);
 }
 
@@ -141,7 +167,11 @@ export function mountainness(s: number): number {
  */
 export function swayScale(s: number): number {
   const base = 1 - 0.85 * cityness(s);
-  const throughTunnel = hump(s, ROUTE.tunnelStart - 220, ROUTE.tunnelEnd + 220);
+  const throughTunnel = hump(
+    s,
+    ROUTE.tunnelStart - at(220),
+    ROUTE.tunnelEnd + at(220)
+  );
   return base * (1 - 0.78 * throughTunnel);
 }
 
@@ -152,16 +182,20 @@ export function swayScale(s: number): number {
  * valleys, the crest inside the tunnel, then the drop to the valley floor.
  * Gradients are kept under about 8° — steep for a road, which is the
  * point, but still drivable.
+ *
+ * Heights run through the same `at()` as the distances, so shortening the
+ * route does not steepen it. Halve the length and keep the 190 m climb and
+ * the descent from the tunnel becomes a 22% grade the car cannot hold.
  */
 const PROFILE: { s: number; y: number }[] = [
   { s: 0, y: 0 },
-  { s: 900, y: 55 },
-  { s: 1800, y: 120 },
-  { s: ROUTE.tunnelStart, y: 178 },
-  { s: ROUTE.tunnelEnd, y: 190 },
-  { s: 3100, y: 150 },
-  { s: ROUTE.descentEnd, y: 118 },
-  { s: 4600, y: 112 },
+  { s: at(900), y: at(55) },
+  { s: at(1800), y: at(120) },
+  { s: ROUTE.tunnelStart, y: at(178) },
+  { s: ROUTE.tunnelEnd, y: at(190) },
+  { s: at(3100), y: at(150) },
+  { s: ROUTE.descentEnd, y: at(118) },
+  { s: at(4600), y: at(112) },
 ];
 
 export function baseElevation(s: number): number {

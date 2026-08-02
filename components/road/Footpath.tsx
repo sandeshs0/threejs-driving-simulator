@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { railHalfWidth, roadHalfWidth } from "@/lib/config";
+import { CONFIG, pavementOuter, pavementY, railHalfWidth } from "@/lib/config";
 import { buildSweep } from "@/lib/ribbon";
 
 /**
@@ -18,8 +18,8 @@ import { buildSweep } from "@/lib/ribbon";
 export function Footpath({ sStart, sEnd }: { sStart: number; sEnd: number }) {
   const geometries = useMemo(() => {
     const inner = railHalfWidth();
-    const outer = roadHalfWidth() + 3.4;
-    const kerbHeight = 0.16;
+    const outer = pavementOuter();
+    const kerbHeight = CONFIG.road.kerbHeight;
 
     // Kerb face rising off the road, then the pavement running outward.
     const path = (side: number) =>
@@ -27,7 +27,7 @@ export function Footpath({ sStart, sEnd }: { sStart: number; sEnd: number }) {
         profile: [
           { u: side * inner, y: 0 },
           { u: side * inner, y: kerbHeight },
-          { u: side * outer, y: kerbHeight + 0.03 },
+          { u: side * outer, y: pavementY() },
         ],
         sStart,
         sEnd,

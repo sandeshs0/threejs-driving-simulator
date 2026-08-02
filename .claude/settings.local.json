@@ -13,7 +13,11 @@
       "Bash(grep -qE 'Ready in|Error|error|EADDRINUSE|EPERM' C:/Users/hello/AppData/Local/Temp/claude/D--Driving-Simulator/b13aedf1-eea4-4a35-b588-f1b0d97b1337/tasks/b18b29ohr.output)",
       "Bash(break)",
       "Bash(sleep 1)",
-      "Bash(tail -n 20 C:/Users/hello/AppData/Local/Temp/claude/D--Driving-Simulator/b13aedf1-eea4-4a35-b588-f1b0d97b1337/tasks/b18b29ohr.output)"
+      "Bash(tail -n 20 C:/Users/hello/AppData/Local/Temp/claude/D--Driving-Simulator/b13aedf1-eea4-4a35-b588-f1b0d97b1337/tasks/b18b29ohr.output)",
+      "PowerShell(npx tsc --noEmit; \"tsc exit: $LASTEXITCODE\")",
+      "PowerShell(foreach \\($id in 3360, 19316, 12148\\) { try { Stop-Process -Id $id -Force -ErrorAction Stop; \"stopped $id\" } catch { \"already gone: $id\" } }; Start-Sleep -Seconds 2; if \\(Test-Path \"D:\\\\Driving Simulator\\\\.next\"\\) { Remove-Item -Recurse -Force \"D:\\\\Driving Simulator\\\\.next\" -ErrorAction SilentlyContinue }; if \\(Test-Path \"D:\\\\Driving Simulator\\\\.next\"\\) { \"WARNING: .next still present\" } else { \".next removed\" })",
+      "PowerShell(Get-Content *)",
+      "WebSearch"
     ]
   }
 }

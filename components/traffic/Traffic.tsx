@@ -120,6 +120,10 @@ const BEHIND = 140;
 /** How far a vehicle may stray from the centreline before the kerb stops it. */
 const strayLimit = () => roadHalfWidth() - 0.9;
 
+/** Gap a following driver keeps behind the player, and where they notice. */
+const MIN_FOLLOW_GAP = 7;
+const FOLLOW_RANGE = 20;
+
 export function Traffic() {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
 
@@ -394,8 +398,8 @@ export function Traffic() {
 /**
  * The bit of AI that makes traffic feel driven rather than played back.
  *
- *  - Same-direction traffic behind the player lifts off when the player is
- *    close in front, instead of walking straight into the back of them.
+ *  - Same-direction traffic behind the player lifts off and holds a gap,
+ *    instead of walking straight into the back of them.
  *  - Oncoming traffic that finds you on its side of the road pulls over
  *    hard. In Nepal that is the near side — its left — so it dives toward
  *    the kerb, which is the direction that actually clears the conflict.
@@ -415,12 +419,14 @@ function driveTowardPlayer(
   slot.laneTarget = lane;
 
   if (slot.direction > 0) {
-    // Following the player: back off if we are closing on them.
-    if (ahead > 0 && ahead < 16 && sameLane) {
-      const closeness = 1 - ahead / 16;
+    // Following the player: hold a gap rather than matching speed. Sitting
+    // on the player's rear bumper looks right but plays terribly — it walls
+    // the car in, and reversing out of anywhere becomes impossible.
+    if (ahead > 0 && ahead < FOLLOW_RANGE && sameLane) {
+      const slack = (ahead - MIN_FOLLOW_GAP) / (FOLLOW_RANGE - MIN_FOLLOW_GAP);
       slot.cruise = Math.min(
         slot.cruise,
-        Math.max(0, Math.abs(car.speed) * (1 - closeness * 0.35))
+        Math.max(0, slack * (Math.abs(car.speed) + 2))
       );
     }
   } else if (ahead > 0 && ahead < 70) {

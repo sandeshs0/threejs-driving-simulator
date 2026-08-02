@@ -75,8 +75,18 @@ export function Vehicle() {
 
     // Aero drag (quadratic) + rolling resistance, plus a penalty for
     // leaving the asphalt — gravel scrubs off speed noticeably.
+    //
+    // That penalty ramps in with speed rather than applying flat. A
+    // constant 4.2 m/s² is a wall the drivetrain has to push through even
+    // at a standstill, and it happened to cancel reverse exactly, so a car
+    // that had put a wheel on the shoulder could not back off it. Drag that
+    // grows with speed is also closer to the truth: it is the tyres
+    // ploughing, and at a crawl they are not ploughing anything.
     let resistance = v.dragCoef * car.speed * car.speed + v.rollingResistance;
-    if (car.offRoad) resistance += v.offRoadDrag;
+    if (car.offRoad) {
+      const bite = Math.min(1, Math.abs(car.speed) / v.offRoadDragRamp);
+      resistance += v.offRoadDrag * bite;
+    }
 
     if (car.speed > 0) car.speed = Math.max(0, car.speed - resistance * dt);
     else if (car.speed < 0) car.speed = Math.min(0, car.speed + resistance * dt);
