@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm install *)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(npm run *)",
+      "PowerShell(Remove-Item *)",
+      "Bash(seq 1 60)",
+      "Bash(grep -qE 'Ready in|Error|error|EADDRINUSE|EPERM' C:/Users/hello/AppData/Local/Temp/claude/D--Driving-Simulator/b13aedf1-eea4-4a35-b588-f1b0d97b1337/tasks/b18b29ohr.output)",
+      "Bash(break)",
+      "Bash(sleep 1)",
+      "Bash(tail -n 20 C:/Users/hello/AppData/Local/Temp/claude/D--Driving-Simulator/b13aedf1-eea4-4a35-b588-f1b0d97b1337/tasks/b18b29ohr.output)"
+    ]
+  }
+}
