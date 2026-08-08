@@ -23,7 +23,9 @@ import { Infotainment } from "@/components/ui/Infotainment";
 import { MediaPlayer } from "@/components/ui/MediaPlayer";
 import { HudBridge } from "@/components/ui/HudBridge";
 import { StartOverlay } from "@/components/ui/StartOverlay";
+import { TouchControls } from "@/components/ui/TouchControls";
 import { TuningPanel } from "@/components/ui/TuningPanel";
+import { detectTouch } from "@/lib/input";
 
 /**
  * Experience
@@ -36,10 +38,20 @@ import { TuningPanel } from "@/components/ui/TuningPanel";
  * by dropping in a new component without touching the rest.
  */
 export default function Experience() {
+  /**
+   * Read once, at module-evaluation time on the client, because it decides
+   * canvas properties that cannot be changed after the context is created.
+   *
+   * A phone is asked for less: capping the pixel ratio at 1.5 is the single
+   * biggest lever there is on a device whose ratio is often 3, and it costs
+   * far less visually than dropping the shadows or the post chain would.
+   */
+  const touch = typeof window !== "undefined" && detectTouch();
+
   return (
     <>
       <KeyboardControls map={controlsMap}>
-        <Canvas shadows dpr={[1, 2]}>
+        <Canvas shadows dpr={[1, touch ? 1.5 : 2]}>
           <Suspense fallback={null}>
             {/* First, so SKY is current before anything reads it. */}
             <Weather />
@@ -94,6 +106,7 @@ export default function Experience() {
       <Infotainment />
       <MediaPlayer />
       <StartOverlay />
+      <TouchControls />
       <TuningPanel />
     </>
   );

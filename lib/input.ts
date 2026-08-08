@@ -24,12 +24,6 @@ export const INPUT = {
   /** -1..1, positive steers left — the same sign the `A` key produces. */
   steer: 0,
   horn: false,
-  /**
-   * True while a touch control is actually being held. The keyboard wins
-   * whenever it is pressed, so a desktop with a touchscreen behaves like a
-   * desktop until someone puts a finger on a pedal.
-   */
-  engaged: false,
 };
 
 /** Which source is steering. Tilt where it works, the wheel otherwise. */
@@ -160,7 +154,6 @@ function onOrientation(e: DeviceOrientationEvent) {
   // Tilting the phone's left edge down steers left, and left is positive
   // here because that is the sign the `A` key has always produced.
   INPUT.steer = -Math.sign(offset) * shaped;
-  if (shaped > 0.02) INPUT.engaged = true;
 }
 
 /**
@@ -241,12 +234,10 @@ export function toggleInvert() {
  */
 export function setThrottle(value: number) {
   INPUT.throttle = value;
-  INPUT.engaged = value !== 0 || INPUT.steer !== 0;
 }
 
 export function setWheelSteer(value: number) {
   INPUT.steer = value;
-  INPUT.engaged = value !== 0 || INPUT.throttle !== 0;
 }
 
 export function setHorn(down: boolean) {
@@ -258,7 +249,6 @@ export function releaseAll() {
   INPUT.throttle = 0;
   INPUT.steer = 0;
   INPUT.horn = false;
-  INPUT.engaged = false;
 }
 
 // ------------------------------------------------------------- persistence

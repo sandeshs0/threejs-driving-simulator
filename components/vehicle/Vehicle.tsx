@@ -8,6 +8,7 @@ import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/ra
 import { CONFIG, driveHalfWidth, ownLaneU } from "@/lib/config";
 import { Controls, UPDATE_ORDER } from "@/lib/controls";
 import { contain, inGrid, onStreet, type Containment } from "@/lib/cityGrid";
+import { INPUT } from "@/lib/input";
 import { centerDX, isOnAsphalt, lateralOffset, sFromZ, surfaceY } from "@/lib/road";
 import { CLOCK } from "@/lib/weather";
 import { useGame } from "@/stores/useGame";
@@ -57,8 +58,20 @@ export function Vehicle() {
     const car = useGame.getState().vehicle;
     const keys = getKeys();
 
-    const throttle = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0);
-    const steering = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+    // ---- Two inputs, one pair of numbers ----
+    // The keys were always reduced to a throttle and a steering value
+    // before anything used them, and the bicycle model below takes a
+    // continuous steer angle rather than a direction — so the keyboard was
+    // never really digital, it was an analogue input only ever handed -1, 0
+    // or 1. Tilt and the on-screen wheel fill in the rest of the range and
+    // nothing downstream changes.
+    //
+    // A pressed key always wins. That way a laptop with a touchscreen
+    // behaves like a laptop right up until someone puts a thumb on a pedal.
+    const keyThrottle = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0);
+    const keySteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+    const throttle = keyThrottle !== 0 ? keyThrottle : INPUT.throttle;
+    const steering = keySteer !== 0 ? keySteer : INPUT.steer;
     const prevSpeed = car.speed;
     car.throttle = throttle;
 
@@ -74,14 +87,18 @@ export function Vehicle() {
     // ---- Longitudinal forces ----
     // A battered car does not pull as hard. Enough to notice after a bad
     // run through the traffic, not enough to strand you.
+    // Scaled by how far the pedal is down, which for a key is always all
+    // the way — so this is identical on the keyboard and correct on a
+    // half-pressed analogue input.
     const health = 1 - 0.35 * car.damage;
     if (throttle > 0) {
-      car.speed += v.engineAccel * health * dt;
+      car.speed += v.engineAccel * health * throttle * dt;
     } else if (throttle < 0) {
+      const pedal = -throttle;
       if (car.speed > 0.1) {
-        car.speed -= v.brakeDecel * wetBrake * dt; // braking
+        car.speed -= v.brakeDecel * wetBrake * pedal * dt; // braking
       } else {
-        car.speed -= v.reverseAccel * dt; // reversing
+        car.speed -= v.reverseAccel * pedal * dt; // reversing
       }
     }
     car.braking = throttle < 0 && prevSpeed > 0.1;

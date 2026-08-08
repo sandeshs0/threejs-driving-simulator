@@ -26,6 +26,9 @@ Click the title card to start — that click is also the user gesture browsers r
 | `L` | Headlights — auto / on / off |
 | Mouse | Look around / orbit |
 
+On a phone or tablet, turn the device sideways: tilt to steer, pedals bottom
+right, drag the view to look around. See **Playing it on a phone** below.
+
 You drive on the **left**. Nepal is a keep-left country, the car is
 right-hand drive because of it, and the HUD tells you when you have wandered
 onto the offside — as does the oncoming bus.
@@ -61,6 +64,7 @@ components/Experience   composition root: canvas, physics, systems
   environment/          biome scenery
   audio/AudioSystem     synthesizer lifecycle
   ui/                   HUD, radar + route map, start overlay, Leva panel
+  ui/TouchControls      pedals, wheel, tilt readout — the keyboard, on glass
   ui/Infotainment       the head unit: radio, library, YouTube
   ui/MediaPlayer        live streams and track files, one media element
   vehicle/InfotainmentScreen  the live panel in the centre console
@@ -72,6 +76,7 @@ lib/
   collision.ts          OBB separating-axis test + two-body impulse response
   journey.ts            route signals, waypoints, progress and place names
   weather.ts            the clock, the sun path, and the sky as 0→1 signals
+  input.ts              tilt and touch, reduced to the numbers the keys make
   litMaterials.ts       the handful of materials that change after dark
   junction.ts           the Kalanki underpass cut, as a terrain function
   cityGrid.ts           the street network: analytic lattice + containment
@@ -237,6 +242,74 @@ Heights go through the same scale as distances, which is the reason for doing it
 `WAYPOINTS` is the single list behind the progress bar, the "next place" readout, the pins on both maps and the district names in the HUD. Add a row and all four pick it up.
 
 `journey.ts` exposes the route as smooth 0→1 signals — `cityness`, `mountainness`, `swayScale`, `terracing` — rather than `if (stage)` branches. Every other system multiplies by them: the road's switchbacks flatten into city streets, the ridges subside into a valley floor, the terraces fade out, the forest thins as buildings thicken, and the fog warms and closes in. All of it happens over hundreds of metres, the way it does coming down from Thankot.
+
+### Playing it on a phone
+
+Turn the device sideways and it is the same drive: tilt to steer, gas and
+brake bottom right, drag anywhere on the view to look around the cabin.
+
+**There is no touch mode.** `<Vehicle/>` always reduced the keyboard to two
+plain numbers, `throttle` and `steering`, before doing anything with them —
+and the bicycle model it feeds takes a continuous steer angle, not a
+direction. So the keyboard was never really a digital input; it was an
+analogue one that only ever got handed -1, 0 or 1. Tilt and a dragged wheel
+fill in the rest of the range and nothing downstream changes. `lib/input.ts`
+is a mutable singleton in the same idiom as `CONFIG` and `CLOCK`: written by
+the DOM overlay on pointerdown, read once a frame inside `useFrame`,
+subscribed to by nothing. A pressed key always wins, so a laptop with a
+touchscreen behaves like a laptop until someone puts a thumb on a pedal.
+
+The one change the physics needed was multiplying by the pedal instead of
+testing its sign, which is identical for a key that is always fully pressed
+and correct for anything that is not.
+
+**Tilt, with the wheel as a real fallback rather than a consolation.** iOS 13
+and later gate `DeviceOrientation` behind a permission that can only be
+*requested* from a user gesture — so it is asked for inside the start
+overlay's tap, the same gesture that unblocks the AudioContext, and `start()`
+is called after the answer rather than before it, or the player would be
+driving behind a modal dialog. It can be refused, and plenty of devices have
+no usable sensor at all, so every failure path lands on the wheel.
+
+Three things about tilt that are not obvious until it is wrong:
+
+- **The steering axis is not the same axis in both orientations.** Steering
+  is a *roll* — one edge of the screen drops, the other lifts — so the
+  rotation axis runs up and down the screen. In portrait that is the phone's
+  long axis, which is `gamma`. On its side, the screen's vertical is now the
+  phone's short axis and the same motion appears in `beta`. Read gamma in
+  landscape and the car steers when you tip the screen away from your face.
+- **Nobody holds a phone flat.** There is a captured neutral, taken shortly
+  after permission is granted and re-takeable from the Centre button,
+  because assuming zero means full lock the moment you start.
+- **The landscape sign cannot be derived reliably.** `screen.orientation.angle`
+  is reported consistently but which way it maps to a physical roll is not,
+  and getting it backwards makes the game unplayable rather than slightly
+  wrong. Hence a Flip button, which is the honest fix.
+
+The wheel is a wheel: the angle comes from the pointer's position *around*
+its centre, so a thumb anywhere on the rim arcs it. A horizontal-drag slider
+is easier to write and immediately reads as a different control from the one
+drawn on the screen. It self-centres on release over a few frames rather than
+snapping, and it clamps at the stops instead of winding past them — dead
+travel that has to be unwound before the car responds feels exactly as broken
+as it sounds.
+
+**Everything defaults against you on a phone**, so `globals.css` turns off the
+tap-delay, the double-tap zoom, the long-press callout and the rubber-band
+scroll globally rather than per control, and the stereo's lists opt back in
+with `data-scrollable`. Pointer events throughout, and `setPointerCapture` on
+the pedals, so a thumb sliding off the edge of the throttle keeps the
+throttle held rather than silently dropping it mid-overtake.
+
+The layout moves rather than shrinks. The bottom of the screen becomes
+controls, so the speed goes up under the place name — not into the middle,
+which is where you are looking — and the radar moves out of the corner the
+pedals need, into the top right at about half the size. The pixel ratio is
+capped at 1.5, which on a device that reports 3 is the single biggest lever
+there is and costs less than dropping the shadows would. Leva is hidden: it
+is a mouse tool, and on glass it is a permanent obstruction that cannot
+usefully be operated.
 
 ### The road is math, not meshes
 

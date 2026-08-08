@@ -25,7 +25,8 @@
       "WebFetch(domain:radio.menu)",
       "Bash(npx tsc *)",
       "Bash(npx next *)",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(python -)"
     ]
   }
 }

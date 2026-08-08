@@ -62,13 +62,72 @@ export function CameraController() {
     return () => window.removeEventListener("keydown", onKey);
   }, [cycleCamera]);
 
+  /**
+   * Looking around, from a mouse or a thumb.
+   *
+   * These want opposite behaviours from the same event, and the difference
+   * is not cosmetic. A mouse has a position on screen at all times, so
+   * where it *is* can mean where you are looking, and the view tracks it
+   * continuously. A finger has no position until it lands, so mapping the
+   * touch point the same way would snap the view sideways the instant you
+   * touched the right of the screen — which is also the instant you were
+   * reaching for something else. Touch therefore accumulates *movement*,
+   * and the view stays where you left it.
+   *
+   * Touch drags are also ignored unless they started on the canvas, or
+   * every turn of the steering wheel would swing the camera with it.
+   */
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      mouse.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.current.y = (e.clientY / window.innerHeight) * 2 - 1;
+    let dragging = -1;
+    let lastX = 0;
+    let lastY = 0;
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      if ((e.target as HTMLElement | null)?.tagName !== "CANVAS") return;
+      dragging = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
     };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") {
+        mouse.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.current.y = (e.clientY / window.innerHeight) * 2 - 1;
+        return;
+      }
+      if (e.pointerId !== dragging) return;
+
+      // The delta is measured rather than read off `movementX`, which is
+      // not implemented for touch pointers everywhere and silently reports
+      // zero where it is not.
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      // About two screen-widths of travel for the full sweep: slow enough
+      // to aim with, fast enough to reach the mirrors.
+      const gain = 2 / window.innerWidth;
+      const m = mouse.current;
+      m.x = THREE.MathUtils.clamp(m.x + dx * gain, -1, 1);
+      m.y = THREE.MathUtils.clamp(m.y + dy * gain * 2, -1, 1);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId === dragging) dragging = -1;
+    };
+
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
   }, []);
 
   // Ease in whenever the viewpoint changes.

@@ -161,7 +161,10 @@ export function Infotainment() {
             </h1>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-8">
+          {/* `data-scrollable` opts back in to vertical panning and text
+              selection, which globals.css turns off everywhere else so a
+              thumb on a pedal never rubber-bands the page. */}
+          <div data-scrollable className="min-h-0 flex-1 overflow-y-auto px-8 pb-8">
             {tab === "radio" && <RadioPane />}
             {tab === "music" && <MusicPane />}
             {tab === "youtube" && <YoutubePane />}

@@ -5,3 +5,57 @@ body {
   height: 100%;
   overscroll-behavior: none;
 }
+
+/*
+ * Touch hardening.
+ *
+ * A phone browser's defaults are all wrong for a game: a press that might
+ * become a scroll is held for a moment before it is delivered, a second tap
+ * zooms, a long press selects text or opens a callout, and the whole page
+ * rubber-bands when a thumb slides off a pedal. Every one of those turns
+ * into a dropped or delayed input at exactly the wrong moment.
+ *
+ * Set here rather than per-control so nothing added later forgets it. The
+ * overlays that must still scroll — the stereo's lists — opt back in below.
+ */
+body {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[data-scrollable],
+[data-scrollable] * {
+  touch-action: pan-y;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * Safe areas.
+ *
+ * The canvas deliberately runs to the edges of the glass — the drive should
+ * be full-bleed, and `viewportFit: "cover"` in layout.tsx is what puts it
+ * there. Only the things you read and press come back inward.
+ *
+ * These are separate utilities rather than a blanket rule on `.fixed`,
+ * because insetting via padding would resize every overlay box and inset
+ * the full-screen ones too. A phone held in landscape puts its notch on one
+ * of the *side* edges, which is exactly where the wheel and the pedals
+ * are — so the horizontal insets are the ones that matter here, and 20px of
+ * margin does not clear a 44px notch.
+ */
+.safe-left {
+  left: calc(1.25rem + env(safe-area-inset-left, 0px));
+}
+.safe-right {
+  right: calc(1.25rem + env(safe-area-inset-right, 0px));
+}
+.safe-bottom {
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+.safe-top {
+  top: calc(1rem + env(safe-area-inset-top, 0px));
+}

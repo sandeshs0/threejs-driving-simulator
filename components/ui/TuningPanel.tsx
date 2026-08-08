@@ -2,6 +2,7 @@
 
 import { useControls, folder, Leva } from "leva";
 import { CONFIG } from "@/lib/config";
+import { useIsTouch } from "@/lib/input";
 import { CLOCK, WEATHER } from "@/lib/weather";
 
 /**
@@ -14,6 +15,13 @@ import { CLOCK, WEATHER } from "@/lib/weather";
  * Collapsed by default so it stays out of the way.
  */
 export function TuningPanel() {
+  // Leva is a mouse-and-keyboard tool: draggable number fields, hover
+  // targets, no touch handling to speak of. On a phone it is a permanent
+  // obstruction in the corner that cannot usefully be operated, so it is
+  // hidden rather than restyled. The hooks still run — they have to, they
+  // are hooks — and only the panel is withheld.
+  const isTouch = useIsTouch();
+
   useControls({
     Vehicle: folder(
       {
@@ -133,5 +141,6 @@ export function TuningPanel() {
     ),
   });
 
+  if (isTouch) return null;
   return <Leva collapsed titleBar={{ title: "Tuning" }} />;
 }

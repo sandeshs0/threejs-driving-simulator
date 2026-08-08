@@ -20,6 +20,7 @@ import {
   locate,
 } from "@/lib/cityGrid";
 import { generateTile } from "@/lib/cityBlocks";
+import { useIsTouch } from "@/lib/input";
 import { centerX, roadPoint, sFromZ } from "@/lib/road";
 import { useGame } from "@/stores/useGame";
 
@@ -45,6 +46,8 @@ import { useGame } from "@/stores/useGame";
  */
 
 const RADAR_SIZE = 200;
+/** Smaller on a phone, where 200px is a third of the screen. */
+const TOUCH_RADAR_SIZE = 116;
 
 const COLORS = {
   ground: "#3b4433",
@@ -93,6 +96,12 @@ export function Minimap() {
   const expanded = useGame((s) => s.mapExpanded);
   const toggleMap = useGame((s) => s.toggleMap);
   const started = useGame((s) => s.started);
+  /**
+   * The radar's home corner is the one the pedals need, so on touch it
+   * moves to the top right and shrinks. It also gets a tap target of its
+   * own for the full map, since there is no Tab key to press.
+   */
+  const isTouch = useIsTouch();
 
   // Tab opens the full map. The browser would otherwise move focus, and
   // there is nothing to focus on over a canvas.
@@ -137,35 +146,69 @@ export function Minimap() {
 
     frame = requestAnimationFrame(render);
     return () => cancelAnimationFrame(frame);
-  }, [expanded]);
+    // `started` is a dependency because of the early return below: until the
+    // player has clicked, this component renders null and there is no canvas
+    // for the effect to find, so it bails. Without `started` here it would
+    // never run again — the radar stayed blank for the whole drive and only
+    // came to life once `expanded` changed, which is to say once you had
+    // opened the full map and closed it again.
+  }, [expanded, started]);
 
   if (!started) return null;
 
+  const size = isTouch ? TOUCH_RADAR_SIZE : RADAR_SIZE;
+
+  const canvas = (
+    <canvas
+      ref={canvasRef}
+      className={
+        expanded
+          ? "h-[76vmin] w-[76vmin] rounded-xl border border-white/15 shadow-2xl"
+          : "rounded-full border-2 border-white/25 shadow-lg"
+      }
+      style={expanded ? undefined : { width: size, height: size }}
+    />
+  );
+
   return (
     <>
-      <div
-        className={
-          expanded
-            ? "pointer-events-none fixed inset-0 z-20 flex items-center justify-center bg-black/55 backdrop-blur-sm"
-            : "pointer-events-none fixed bottom-6 right-6 z-10"
-        }
-      >
-        <canvas
-          ref={canvasRef}
-          className={
-            expanded
-              ? "h-[76vmin] w-[76vmin] rounded-xl border border-white/15 shadow-2xl"
-              : "rounded-full border-2 border-white/25 shadow-lg"
-          }
-          style={
-            expanded
-              ? undefined
-              : { width: RADAR_SIZE, height: RADAR_SIZE }
-          }
-        />
-      </div>
+      {expanded ? (
+        <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+          {canvas}
+        </div>
+      ) : isTouch ? (
+        /*
+          The radar *is* the map button.
 
-      {!expanded && (
+          It was a button of its own for a while, sitting under a radar that
+          already showed the same world at a different zoom — two controls
+          for one idea, in the corner with the least room. Tapping the thing
+          you are already looking at is what everyone tries first anyway.
+        */
+        <button
+          aria-label="Open route map"
+          onClick={toggleMap}
+          className="safe-right safe-top fixed z-10 touch-none"
+        >
+          {canvas}
+        </button>
+      ) : (
+        <div className="pointer-events-none fixed bottom-6 right-6 z-10">
+          {canvas}
+        </div>
+      )}
+
+      {/* Tapping anywhere closes the full map — there is no Tab to press,
+          and a phone screen full of map with no way out is a trap. */}
+      {expanded && isTouch && (
+        <button
+          aria-label="Close map"
+          onClick={toggleMap}
+          className="fixed inset-0 z-30"
+        />
+      )}
+
+      {!expanded && !isTouch && (
         <div className="pointer-events-none fixed bottom-2 right-6 z-10 w-[200px] select-none text-center text-[11px] uppercase tracking-widest text-white/45">
           Tab · map
         </div>

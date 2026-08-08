@@ -6,6 +6,7 @@ import { useKeyboardControls } from "@react-three/drei";
 import { AudioEngine } from "@/lib/audio/AudioEngine";
 import { MusicEngine } from "@/lib/audio/MusicEngine";
 import { Controls, UPDATE_ORDER } from "@/lib/controls";
+import { INPUT } from "@/lib/input";
 import { stageAt } from "@/lib/journey";
 import { STATIONS, trackById, trackForRegion } from "@/lib/music/tracks";
 import { sFromZ } from "@/lib/road";
@@ -79,7 +80,9 @@ export function AudioSystem() {
     if (!engine?.isRunning) return;
 
     const { vehicle, muted } = useGame.getState();
-    engine.update(vehicle, dt, getKeys().horn, muted || document.hidden);
+    // Either horn — the key, or the button on the touch overlay.
+    const horn = getKeys().horn || INPUT.horn;
+    engine.update(vehicle, dt, horn, muted || document.hidden);
 
     const music = musicRef.current;
     if (!music) return;
