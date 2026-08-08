@@ -231,11 +231,7 @@ function Pedal({ kind }: { kind: keyof typeof PEDALS }) {
 
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <HoldButton
-        label={spec.label}
-        onChange={press}
-        className="block rounded-md bg-transparent p-0 ring-0"
-      >
+      <HoldButton bare label={spec.label} onChange={press} className="block">
         <span
           ref={pad}
           className="block rounded-md"
@@ -275,12 +271,22 @@ function HoldButton({
   children,
   onChange,
   stopPropagation = false,
+  bare = false,
 }: {
   label: string;
   className: string;
   children: React.ReactNode;
   onChange: (down: boolean) => void;
   stopPropagation?: boolean;
+  /**
+   * Skip the chrome. The pedals and the horn draw themselves completely and
+   * would otherwise be fighting this component's ring and backdrop blur
+   * with `ring-0` overrides — and which of two conflicting Tailwind
+   * utilities wins depends on their order in the generated stylesheet, not
+   * on the order they are written in the class attribute. Not a fight worth
+   * having when the button can simply not add them.
+   */
+  bare?: boolean;
 }) {
   const held = useRef(false);
 
@@ -308,7 +314,11 @@ function HoldButton({
       onPointerCancel={release}
       onLostPointerCapture={release}
       onContextMenu={(e) => e.preventDefault()}
-      className={`flex touch-none items-center justify-center text-white/90 ring-1 backdrop-blur-sm ${className}`}
+      className={
+        bare
+          ? `touch-none ${className}`
+          : `flex touch-none items-center justify-center text-white/90 ring-1 backdrop-blur-sm ${className}`
+      }
     >
       {children}
     </button>
@@ -464,10 +474,11 @@ function Wheel({ steerable }: { steerable: boolean }) {
             the stopped propagation. */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <HoldButton
-            label="Horn"
+            bare
             stopPropagation
+            label="Horn"
             onChange={setHorn}
-            className="h-11 w-11 rounded-full bg-transparent ring-0 active:brightness-150"
+            className="flex h-11 w-11 items-center justify-center rounded-full active:brightness-150"
           >
             <Star />
           </HoldButton>

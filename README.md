@@ -27,7 +27,8 @@ Click the title card to start — that click is also the user gesture browsers r
 | Mouse | Look around / orbit |
 
 On a phone or tablet, turn the device sideways: tilt to steer, pedals bottom
-right, drag the view to look around. See **Playing it on a phone** below.
+left, wheel and horn bottom right, drag the view to look around. See
+**Playing it on a phone** below.
 
 You drive on the **left**. Nepal is a keep-left country, the car is
 right-hand drive because of it, and the HUD tells you when you have wandered
@@ -64,7 +65,7 @@ components/Experience   composition root: canvas, physics, systems
   environment/          biome scenery
   audio/AudioSystem     synthesizer lifecycle
   ui/                   HUD, radar + route map, start overlay, Leva panel
-  ui/TouchControls      pedals, wheel, tilt readout — the keyboard, on glass
+  ui/TouchControls      pedals, wheel and horn — the keyboard, on glass
   ui/Infotainment       the head unit: radio, library, YouTube
   ui/MediaPlayer        live streams and track files, one media element
   vehicle/InfotainmentScreen  the live panel in the centre console
@@ -245,8 +246,23 @@ Heights go through the same scale as distances, which is the reason for doing it
 
 ### Playing it on a phone
 
-Turn the device sideways and it is the same drive: tilt to steer, gas and
-brake bottom right, drag anywhere on the view to look around the cabin.
+Turn the device sideways and it is the same drive: tilt to steer, brake and
+gas bottom left, the wheel bottom right with the horn in the middle of it,
+drag anywhere on the view to look around the cabin.
+
+**The controls are where they are in the car.** The wheel is on the right
+because this is a right-hand-drive car in a keep-left country — the same
+reason `CONFIG.camera.eyeOffset` has a positive x. The pedals are on the
+left, brake inboard of the accelerator, wide pad and narrow pad, which is
+where they are in every car ever built. The horn is the middle of the wheel,
+because that is what a horn is rather than a button in a row of buttons.
+
+They are drawn like the parts too — ribbed rubber pads in chrome surrounds,
+hinged at the top and tipped away from you, dropping down their arms and
+shortening their shadows as they travel; a stitched leather rim with three
+swept spokes and the car's own three-pointed star on the hub. Pressing a
+pedal moves it rather than fading a background colour, because the thing
+being simulated is travel.
 
 **There is no touch mode.** `<Vehicle/>` always reduced the keyboard to two
 plain numbers, `throttle` and `steering`, before doing anything with them —
@@ -295,6 +311,12 @@ snapping, and it clamps at the stops instead of winding past them — dead
 travel that has to be unwound before the car responds feels exactly as broken
 as it sounds.
 
+**It is drawn in tilt mode too**, where it stops taking drags but keeps
+turning, driven off `INPUT.steer` at frame rate. Tilt otherwise gives no
+feedback at all until the car is already in a wall, and a wheel mirroring
+what the sensor thinks you asked for is a better instrument than any bar
+graph — it is the instrument the car has.
+
 **Everything defaults against you on a phone**, so `globals.css` turns off the
 tap-delay, the double-tap zoom, the long-press callout and the rubber-band
 scroll globally rather than per control, and the stereo's lists opt back in
@@ -302,14 +324,23 @@ with `data-scrollable`. Pointer events throughout, and `setPointerCapture` on
 the pedals, so a thumb sliding off the edge of the throttle keeps the
 throttle held rather than silently dropping it mid-overtake.
 
-The layout moves rather than shrinks. The bottom of the screen becomes
-controls, so the speed goes up under the place name — not into the middle,
-which is where you are looking — and the radar moves out of the corner the
-pedals need, into the top right at about half the size. The pixel ratio is
-capped at 1.5, which on a device that reports 3 is the single biggest lever
-there is and costs less than dropping the shadows would. Leva is hidden: it
-is a mouse tool, and on glass it is a permanent obstruction that cannot
-usefully be operated.
+The layout moves rather than shrinks, and it is a separate component rather
+than a dozen ternaries in the desktop one — this is not the same arrangement
+with smaller text, it is a different and smaller set of things, and
+interleaving the two makes both hard to read and neither safe to change.
+
+What goes is everything you would not look at while driving on a screen the
+size of a hand: the frame rate, the odometer, the biome, the name of the
+camera angle, and the word "Journey" over a bar that is obviously a journey.
+The place, the speed and the clock stack into one corner block instead of
+two. **The radar is the map button** — it had one of its own for a while,
+sitting directly beneath a radar showing the same world at a different zoom,
+which is two controls for one idea in the corner with the least room.
+
+The pixel ratio is capped at 1.5, which on a device reporting 3 is the
+single biggest lever there is and costs less than dropping the shadows
+would. Leva is hidden: it is a mouse tool, and on glass it is a permanent
+obstruction that cannot usefully be operated.
 
 ### The road is math, not meshes
 

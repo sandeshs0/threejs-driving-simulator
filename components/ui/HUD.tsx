@@ -153,8 +153,11 @@ export function HUD() {
 function TouchHud({ hud, muted }: { hud: HudState; muted: boolean }) {
   return (
     <>
-      {/* One block, top left: where you are, how fast, what time. */}
-      <div className="safe-left safe-top pointer-events-none fixed max-w-[42vw] select-none text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
+      {/* One block, top left — below the route bar rather than beside it.
+          Sharing that row meant fighting a centred element for width on
+          every screen size; giving it its own line means the street name can
+          stay long enough to be a street name. */}
+      <div className="safe-left pointer-events-none fixed top-12 max-w-[42vw] select-none text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
         <div className="truncate text-[13px] font-medium text-white/85">
           {hud.street || hud.place}
         </div>
@@ -244,7 +247,10 @@ function TouchButtonStrip({ muted }: { muted: boolean }) {
     "flex h-10 w-10 touch-none items-center justify-center rounded-full bg-black/45 text-white/85 ring-1 ring-white/15 backdrop-blur-sm";
 
   return (
-    <div className="safe-right fixed top-[9.25rem] z-10 flex flex-col gap-2 select-none">
+    /* A row, not a column. Stacked, these two reached down to y=236 on a
+       375-point screen and the wheel starts at 217 — laid out sideways they
+       are 88 wide instead of 88 tall, and they sit above it cleanly. */
+    <div className="safe-right fixed top-[9.25rem] z-10 flex gap-2 select-none">
       <button
         aria-label={muted ? "Unmute" : "Mute"}
         onClick={toggleMute}
