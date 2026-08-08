@@ -149,11 +149,37 @@ export const CONFIG = {
   },
 
   // ---- Atmosphere ----
+  // Only the daytime baseline lives here. Where the sun actually is, and
+  // what colour the light is, comes from lib/weather.ts — these are the
+  // endpoints its signals interpolate between.
   sky: {
     fogColor: "#bdd7ee",
     fogNear: 80,
     fogFar: 380,
     sunPosition: [60, 90, 40] as [number, number, number],
+  },
+
+  // ---- Headlights (see components/vehicle/Headlights) ----
+  lighting: {
+    /**
+     * Candela. Three's lights are physical, so this is not on the same
+     * scale as the sun's 1.5 — illuminance falls off with distance and a
+     * beam that lights the road at twenty metres needs a big number.
+     */
+    headlightIntensity: 300,
+    headlightAngle: 0.5, // half-angle of the cone (rad)
+    headlightRange: 75, // metres before the light is cut off entirely
+    beamLength: 26, // how far the visible shaft of lit air extends
+  },
+
+  // ---- Wet weather ----
+  weather: {
+    /** Fraction of dry braking left on a soaked road. */
+    wetBraking: 0.62,
+    /** Fraction of dry cornering grip left. Understeer, not a skating rink. */
+    wetGrip: 0.72,
+    /** How much sooner the tyres start protesting when wet. */
+    wetSlipOnset: 0.65,
   },
 
   // ---- Audio (all procedurally synthesized, no asset files) ----

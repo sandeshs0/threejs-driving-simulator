@@ -7,6 +7,7 @@ import { biomeForChunk } from "@/lib/biomes";
 import { inGrid, locate } from "@/lib/cityGrid";
 import { nextWaypoint, placeAt, progressAt } from "@/lib/journey";
 import { sFromZ } from "@/lib/road";
+import { CLOCK, LIGHT_MODE_NAMES, clockLabel, weatherName } from "@/lib/weather";
 import { useGame } from "@/stores/useGame";
 
 /**
@@ -57,6 +58,9 @@ export function HudBridge() {
       street: where ? where.street : "",
       junction: where && !where.atJunction ? where.junction : "",
       junctionDistance: where ? where.junctionDistance : 0,
+      clock: clockLabel(),
+      weather: weatherName(),
+      lights: LIGHT_MODE_NAMES[CLOCK.lights],
     });
   });
 

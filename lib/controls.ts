@@ -32,6 +32,7 @@ export const controlsMap: KeyboardControlsEntry<Controls>[] = [
 
 /** useFrame priorities — lower runs first. Keeps the update order explicit. */
 export const UPDATE_ORDER = {
+  weather: -50, // moves the clock before anything reads the sky
   traffic: -40, // publishes the car ahead before the player integrates
   vehicle: -30,
   collision: -25, // resolves contacts once both have moved this frame

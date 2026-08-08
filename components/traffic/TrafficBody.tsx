@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import * as THREE from "three";
+import { TRAFFIC_HEADLAMP, TRAFFIC_TAILLAMP } from "@/lib/litMaterials";
 import { mulberry32 } from "@/lib/rng";
 
 /**
@@ -32,21 +34,98 @@ export function TrafficBody({ kind, seed }: { kind: TrafficKind; seed: number })
     [rng]
   );
 
-  switch (kind) {
-    case "bus":
-      return <Bus color={palette.bus} />;
-    case "micro":
-    case "van":
-      return <Micro />;
-    case "tempo":
-      return <Tempo />;
-    case "truck":
-      return <Truck color={palette.bus} />;
-    case "bike":
-      return <Bike />;
-    default:
-      return <Taxi color={palette.car} />;
-  }
+  const body = () => {
+    switch (kind) {
+      case "bus":
+        return <Bus color={palette.bus} />;
+      case "micro":
+      case "van":
+        return <Micro />;
+      case "tempo":
+        return <Tempo />;
+      case "truck":
+        return <Truck color={palette.bus} />;
+      case "bike":
+        return <Bike />;
+      default:
+        return <Taxi color={palette.car} />;
+    }
+  };
+
+  return (
+    <group>
+      {body()}
+      <Lamps kind={kind} />
+    </group>
+  );
+}
+
+/**
+ * Head and tail lamps.
+ *
+ * These are emissive faces, not lights. A city street holds thirty vehicles
+ * in view and thirty pairs of spot lights is not a frame budget — but the
+ * bloom pass already in the post chain turns a bright unlit face into a
+ * glow, and a glow at distance is all an oncoming headlight ever is. The
+ * player's car is the exception and gets real beams; see
+ * components/vehicle/Headlights.
+ *
+ * Every lamp in the game shares two materials, so the whole valley switches
+ * on together at dusk. See lib/litMaterials.
+ */
+type Lamp = [number, number, number];
+
+const LAMP_GEOMETRY = new THREE.BoxGeometry(0.26, 0.13, 0.07);
+const LAMP_GEOMETRY_SMALL = new THREE.BoxGeometry(0.14, 0.11, 0.06);
+
+const LAMPS: Record<TrafficKind, { front: Lamp[]; rear: Lamp[] }> = {
+  bus: {
+    front: [[-0.95, 0.95, -5.03], [0.95, 0.95, -5.03]],
+    rear: [[-0.95, 1.0, 5.03], [0.95, 1.0, 5.03]],
+  },
+  truck: {
+    front: [[-0.85, 0.95, -3.56], [0.85, 0.95, -3.56]],
+    rear: [[-0.95, 0.8, 3.92], [0.95, 0.8, 3.92]],
+  },
+  micro: {
+    front: [[-0.72, 0.8, -2.62], [0.72, 0.8, -2.62]],
+    rear: [[-0.75, 1.0, 2.62], [0.75, 1.0, 2.62]],
+  },
+  van: {
+    front: [[-0.72, 0.8, -2.62], [0.72, 0.8, -2.62]],
+    rear: [[-0.75, 1.0, 2.62], [0.75, 1.0, 2.62]],
+  },
+  taxi: {
+    front: [[-0.58, 0.66, -1.97], [0.58, 0.66, -1.97]],
+    rear: [[-0.58, 0.72, 1.97], [0.58, 0.72, 1.97]],
+  },
+  // A three-wheeler has one lamp, above its single front wheel.
+  tempo: {
+    front: [[0, 0.95, -1.67]],
+    rear: [[-0.45, 1.05, 1.62], [0.45, 1.05, 1.62]],
+  },
+  bike: {
+    front: [[0, 0.86, -0.94]],
+    rear: [[0, 0.72, 0.95]],
+  },
+};
+
+function Lamps({ kind }: { kind: TrafficKind }) {
+  const { front, rear } = LAMPS[kind];
+  const geometry = kind === "bike" || kind === "tempo"
+    ? LAMP_GEOMETRY_SMALL
+    : LAMP_GEOMETRY;
+
+  return (
+    <>
+      {front.map((p, i) => (
+        <mesh key={`f${i}`} position={p} geometry={geometry} material={TRAFFIC_HEADLAMP} />
+      ))}
+      {rear.map((p, i) => (
+        <mesh key={`r${i}`} position={p} geometry={geometry} material={TRAFFIC_TAILLAMP} />
+      ))}
+    </>
+  );
 }
 
 /** Shared wheel row. */

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { ownLaneU } from "@/lib/config";
 import { roadPoint, roadYaw } from "@/lib/road";
 import { CameraMode } from "@/lib/controls";
+import { CLOCK, LIGHT_MODE_NAMES, clockLabel, weatherName } from "@/lib/weather";
 
 /**
  * Spawn the car on the road rather than at a hard-coded point.
@@ -104,6 +105,10 @@ export interface HudState {
   street: string;
   junction: string;
   junctionDistance: number;
+  /** Time of day as "16:24", the weather rolling in, and the light stalk. */
+  clock: string;
+  weather: string;
+  lights: string;
 }
 
 interface GameStore {
@@ -165,6 +170,9 @@ export const useGame = create<GameStore>((set) => ({
     street: "",
     junction: "",
     junctionDistance: 0,
+    clock: clockLabel(),
+    weather: weatherName(),
+    lights: LIGHT_MODE_NAMES[CLOCK.lights],
   },
   started: false,
   muted: false,

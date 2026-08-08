@@ -106,6 +106,19 @@ export function HUD() {
         <div className="mt-0.5 text-sm text-white/55">
           {CAMERA_MODE_NAMES[cameraMode]} view
         </div>
+
+        {/* The sky, in one line: the time, what it is doing, and whether
+            the lights are on. The stalk is only worth mentioning when it
+            has been taken off auto — that is the whole point of auto. */}
+        <div className="mt-2 flex items-center gap-2 text-sm text-white/70 [font-variant-numeric:tabular-nums]">
+          <span className="rounded bg-black/35 px-1.5 py-0.5 font-medium tracking-wide">
+            {hud.clock}
+          </span>
+          <span className="text-white/50">{hud.weather}</span>
+          {hud.lights !== "auto" && (
+            <span className="text-amber-200/80">lights {hud.lights}</span>
+          )}
+        </div>
       </div>
 
       <RouteProgress
@@ -124,6 +137,7 @@ export function HUD() {
       <div className="pointer-events-none fixed top-6 right-6 select-none text-right text-[13px] leading-relaxed text-white/60 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
         W accelerate · S brake / reverse · A / D steer
         <br />C camera · H horn · M mute · Tab map · I stereo · mouse to look
+        <br />T time of day · K weather · L headlights
       </div>
 
       <StereoButton />

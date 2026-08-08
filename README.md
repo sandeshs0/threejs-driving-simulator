@@ -21,6 +21,9 @@ Click the title card to start — that click is also the user gesture browsers r
 | `M` | Mute |
 | `Tab` | Full route map |
 | `I` | Infotainment — radio, music, YouTube |
+| `T` | Time of day — step to the next dawn / noon / dusk / night |
+| `K` | Weather — clear / hazy / rain / monsoon |
+| `L` | Headlights — auto / on / off |
 | Mouse | Look around / orbit |
 
 You drive on the **left**. Nepal is a keep-left country, the car is
@@ -35,6 +38,7 @@ State flows one way: `Vehicle` writes the physics state into a mutable Zustand o
 app/page.tsx            client-only entry
 components/Experience   composition root: canvas, physics, systems
   vehicle/Vehicle       arcade physics, gearbox, slip, terrain following
+  vehicle/Headlights    the only real lights in the game besides the sun
   vehicle/CarExterior   black roadster body, windshield frame, wheels
   vehicle/CarInterior   dashboard, live analogue gauges, wheel, seats
   camera/CameraController  driver / chase / cinematic viewpoints
@@ -51,7 +55,10 @@ components/Experience   composition root: canvas, physics, systems
   city/Pedestrians      pooled walking figures with a real gait
   city/CityGridManager  sliding square of street tiles around the player
   city/StreetTile       one square of city: ground, carriageways, frontages
-  environment/          biome scenery + sky, sun, fog
+  environment/Weather   owns the clock; runs before every other system
+  environment/Atmosphere sky, sun, moon, stars, fog — all of it from SKY
+  environment/Rain      a box of streaks that rides with the viewpoint
+  environment/          biome scenery
   audio/AudioSystem     synthesizer lifecycle
   ui/                   HUD, radar + route map, start overlay, Leva panel
   ui/Infotainment       the head unit: radio, library, YouTube
@@ -64,6 +71,8 @@ lib/
   ribbon.ts             curved-strip and swept-profile geometry builders
   collision.ts          OBB separating-axis test + two-body impulse response
   journey.ts            route signals, waypoints, progress and place names
+  weather.ts            the clock, the sun path, and the sky as 0→1 signals
+  litMaterials.ts       the handful of materials that change after dark
   junction.ts           the Kalanki underpass cut, as a terrain function
   cityGrid.ts           the street network: analytic lattice + containment
   cityBlocks.ts         what stands along each street, per tile
@@ -87,6 +96,109 @@ Dhading  bridge bridge tunnel      checkpost Thankot Kalanki  Kalimati   Ratna
 ```
 
 Two river bridges in the hills, the Nagdhunga tunnel through the valley rim, the Thankot checkpost on the far side — a gantry, booths, raised barriers, the flag and Nepal Police waving traffic through, which is the moment the drive changes character — then Kalanki chowk, then the city, which continues indefinitely, so the world is still infinite.
+
+### The sky is a clock
+
+`lib/weather.ts` is the atmospheric counterpart to `journey.ts`, and
+deliberately the same shape. That file turns *distance* along the route into
+smooth 0→1 signals — `cityness`, `mountainness` — and every system multiplies
+by them instead of branching on a stage. This one does the same with *time*.
+
+So there is no `isNight` anywhere in the project. There is `SKY.daylight`,
+which is 1 at noon and 0 after dark and spends twenty minutes in between, and
+there is `SKY.lamps`, which leads it. Dusk is then a gradient rather than a
+switch, which is the only way it ever looks right: the street lighting comes
+on while there is still colour in the sky, and that overlap *is* dusk.
+
+Two objects, mirroring the split in `stores/useGame.ts`. `CLOCK` is what the
+player sets — the time, the rate it runs at, which weather is rolling in,
+whether the light stalk has been forced. `SKY` is what falls out of that each
+frame: derived, mutated in place, read by everything, subscribed to by
+nothing. `<Weather/>` advances both at `UPDATE_ORDER.weather`, before traffic
+and before the car, so every system sees the same sky on the same frame.
+
+**The sun is Kathmandu's sun.** `sunPosition()` is the standard hour-angle
+formula at 27.7°N, which costs six lines and buys the real thing: it rises due
+east, crosses at 62° — high, but never overhead, so shadows always have a
+direction — and sets due west. Driving north up the Prithvi Highway that puts
+the morning sun on your right and the evening sun on your left, which is what
+the drive actually looks like.
+
+Weather is four presets, and **haze is separate from rain** because in
+Kathmandu it usually is: the winter inversion traps brick-kiln smoke under the
+valley rim and the hills vanish behind it without a drop falling. Each rolls
+in over tens of seconds rather than cutting. Rain also leaves `wetness`
+behind, which rises quickly and falls very slowly, because asphalt does — and
+`wetness`, not `rain`, is what the tyres read. The ten minutes after a shower
+stops are the ones that catch people out.
+
+### One light, and a lot of things that only look like lights
+
+There is exactly one shadow-casting light in the scene and it does both the
+sun and the moon, swinging round to the moon's side of the sky as the sun goes
+down and taking its colour and intensity with it. Moonlit shadows for the cost
+of the shadow map that was already being drawn.
+
+The player's headlights are two real spot lights, because the entire
+experience of driving at night is watching a piece of road appear inside them.
+They cast no shadows: a shadow map redrawn every frame from a viewpoint moving
+at fifty metres a second, twice, would buy a hard-edged silhouette on the road
+ahead, and that is not what dipped beams look like. They sit inside the car's
+tilt group, so they dip under braking and lift under acceleration.
+
+**Everything else is emissive surfaces and additive decals.** Thirty vehicles
+and sixty street lamps in view is not sixty-two lights, it is a slideshow. A
+sodium lamp seen from a moving car is a soft ellipse on the tarmac and a glow
+at the head, and that is exactly what it is drawn as. The bloom pass already in
+the post chain turns a bright unlit face into a glow, and a glow at distance is
+all an oncoming headlight ever is.
+
+That works because of `lib/litMaterials.ts`: the handful of materials that
+change after dark are module-level singletons, not per-component instances.
+City chunks mount and unmount constantly and none of them can afford a
+subscription or a per-frame walk of the scene graph — but because every chunk
+points at the *same* material object, one write lights every window in
+Kathmandu, and a chunk that mounts at midnight is already lit before its first
+frame. It is the same reasoning as `CONFIG`.
+
+The cost is that everything sharing a material changes together, so anything
+that should vary building-to-building has to be a *different* material. Which
+is why the windows come in a lit set and a dark set, split at build time by a
+hash of where the window is. Half the rooms are empty. That is one extra draw
+call per chunk and it is the difference between a city and a lamp.
+
+The car's paint is the one PBR surface in the game and it is lit by the little
+procedural cubemap baked on the first frame — a blue sky and a sun, forever.
+Nothing about the clock reaches it, so `scene.environmentIntensity` is turned
+down after dark or the roadster drives through midnight reflecting a June
+afternoon.
+
+### Rain
+
+One box of streaks, twenty-six metres across, kept centred on the viewpoint.
+Rain is uniform and endless, so simulating a world full of it and culling buys
+nothing: this is indistinguishable and costs a fixed budget however fast you
+are going. The drops are not translated against the car's motion either — for
+a statistically uniform field, moving every drop backwards and wrapping it
+round reproduces the field you already had. What the car's speed *does* change
+is the slant, and the slant is the part the eye reads as speed.
+
+Streaks, not points. A drop crossing the frame during one exposure is a line,
+which is why rain photographs and renders as lines; a field of dots reads as
+snow. Draw range comes from the intensity, so drizzle costs a quarter of what
+the monsoon does instead of drawing the full count at low opacity. Nothing
+falls inside the Nagdhunga bore.
+
+It reaches the driving, not just the view. Wet braking is down to 62% and the
+steering is numbed rather than capped — the arcade model has no cornering cap
+to lower, since it turns the car by the bicycle equation and lets it hold
+whatever that asks for, so numbing the wheel is the same result from the
+driver's seat and leaves the dry handling exactly as it was. The tyres protest
+sooner in both directions. The wipers run, and park properly at the end of a
+stroke rather than stopping mid-screen. And the audio gains three voices,
+because that is how you hear rain from inside a car: the airy hiss of the
+shower, the duller patter on the roof and screen, and the wet rush of spray off
+the tyres, which follows `wetness` and speed rather than the sky.
 
 ### Kalanki chowk
 
@@ -190,7 +302,7 @@ The whole modal stays mounted and collapses to a clipped one-pixel box when clos
 
 The seams are deliberate:
 
-- **Weather / day-night** — animate `CONFIG.sky` and the `Atmosphere` lights; both are read every frame.
+- **Seasons, or a sandstorm** — add a signal to `weather.ts` and a pair of colour endpoints to `Atmosphere`. Neither file needs a branch: `weather.ts` owns *when*, `Atmosphere` owns only what that should look like.
 - **Fuel, GPS, dashboard extras** — add a field to `VehicleState`, render it in `CarInterior` next to the existing gauges.
 - **New biomes** — append to the `BIOMES` table in `lib/biomes.ts`.
 - **Multiplayer** — remote cars are just more transforms driven into the same scene; the vehicle state object is already the single authority for local motion.

@@ -9,6 +9,7 @@ import {
   type Building,
   type CityLayout,
 } from "@/lib/city";
+import { TIMBER_WINDOW, WINDOW_DARK, WINDOW_LIT } from "@/lib/litMaterials";
 import { Temple } from "./Temple";
 import { StallShop } from "./StallShop";
 import { StreetFurniture } from "./StreetFurniture";
@@ -68,8 +69,25 @@ export function CityBuild({ city }: { city: CityLayout }) {
       rot: number;
       scale: [number, number, number];
     };
-    const windows: Piece[] = [];
+    // Two window sets, not one.
+    //
+    // Every window sharing a material is what makes the city light up for
+    // one write at dusk (see lib/litMaterials) — and it is also why they
+    // would all light up *identically*, which is the one thing a night city
+    // never does. Half the rooms are empty. So the windows are split into
+    // two passes at build time by a hash of where the window is, and only
+    // one of the two materials ever glows. It costs one extra draw call per
+    // chunk and it is the difference between a city and a lamp.
+    const windowsLit: Piece[] = [];
+    const windowsDark: Piece[] = [];
     const timberWindows: Piece[] = [];
+
+    /** Deterministic 0..1 from a position, so a chunk looks the same every
+     *  time it is mounted and neighbours do not agree by accident. */
+    const occupied = (x: number, z: number, floor: number) => {
+      const h = Math.sin(x * 12.9898 + z * 78.233 + floor * 37.719) * 43758.5453;
+      return h - Math.floor(h) < 0.55;
+    };
     const awnings: Piece[] = [];
     const hoardings: (Piece & { color: string })[] = [];
 
@@ -105,11 +123,12 @@ export function CityBuild({ city }: { city: CityLayout }) {
         }
       } else {
         for (let floor = 1; floor < b.floors; floor++) {
-          windows.push({
+          const piece: Piece = {
             pos: [wx, b.y + floor * storey + 1.5, wz],
             rot: b.rot,
             scale: [b.width * 0.78, 1.25, 0.1],
-          });
+          };
+          (occupied(b.x, b.z, floor) ? windowsLit : windowsDark).push(piece);
         }
       }
 
@@ -132,7 +151,7 @@ export function CityBuild({ city }: { city: CityLayout }) {
       }
     }
 
-    return { windows, timberWindows, awnings, hoardings };
+    return { windowsLit, windowsDark, timberWindows, awnings, hoardings };
   }, [city.buildings]);
 
   if (city.buildings.length === 0 && city.stalls.length === 0) return null;
@@ -160,12 +179,21 @@ export function CityBuild({ city }: { city: CityLayout }) {
         </Instances>
       )}
 
-      {/* Window bands */}
-      {facades.windows.length > 0 && (
-        <Instances limit={facades.windows.length}>
+      {/* Window bands — rooms with someone in them, and rooms without */}
+      {facades.windowsLit.length > 0 && (
+        <Instances limit={facades.windowsLit.length}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshLambertMaterial color="#2b3138" />
-          {facades.windows.map((w, i) => (
+          <primitive object={WINDOW_LIT} attach="material" />
+          {facades.windowsLit.map((w, i) => (
+            <Instance key={i} position={w.pos} rotation={[0, w.rot + FACE, 0]} scale={w.scale} />
+          ))}
+        </Instances>
+      )}
+      {facades.windowsDark.length > 0 && (
+        <Instances limit={facades.windowsDark.length}>
+          <boxGeometry args={[1, 1, 1]} />
+          <primitive object={WINDOW_DARK} attach="material" />
+          {facades.windowsDark.map((w, i) => (
             <Instance key={i} position={w.pos} rotation={[0, w.rot + FACE, 0]} scale={w.scale} />
           ))}
         </Instances>
@@ -175,7 +203,7 @@ export function CityBuild({ city }: { city: CityLayout }) {
       {facades.timberWindows.length > 0 && (
         <Instances limit={facades.timberWindows.length}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshLambertMaterial color="#3a2617" />
+          <primitive object={TIMBER_WINDOW} attach="material" />
           {facades.timberWindows.map((w, i) => (
             <Instance key={i} position={w.pos} rotation={[0, w.rot + FACE, 0]} scale={w.scale} />
           ))}

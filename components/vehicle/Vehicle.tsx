@@ -9,9 +9,11 @@ import { CONFIG, driveHalfWidth, ownLaneU } from "@/lib/config";
 import { Controls, UPDATE_ORDER } from "@/lib/controls";
 import { contain, inGrid, onStreet, type Containment } from "@/lib/cityGrid";
 import { centerDX, isOnAsphalt, lateralOffset, sFromZ, surfaceY } from "@/lib/road";
+import { CLOCK } from "@/lib/weather";
 import { useGame } from "@/stores/useGame";
 import { CarExterior } from "./CarExterior";
 import { CarInterior } from "./CarInterior";
+import { Headlights } from "./Headlights";
 
 /**
  * Vehicle
@@ -60,6 +62,15 @@ export function Vehicle() {
     const prevSpeed = car.speed;
     car.throttle = throttle;
 
+    // ---- How wet the road is ----
+    // Read once and used three times below. This is `wetness`, not `rain`:
+    // the tyres do not care whether it is falling, only what is on the
+    // asphalt, and that is still there ten minutes after a shower stops.
+    const wet = CLOCK.wetness;
+    const w = CONFIG.weather;
+    const wetBrake = 1 - (1 - w.wetBraking) * wet;
+    const wetGrip = 1 - (1 - w.wetGrip) * wet;
+
     // ---- Longitudinal forces ----
     // A battered car does not pull as hard. Enough to notice after a bad
     // run through the traffic, not enough to strand you.
@@ -68,7 +79,7 @@ export function Vehicle() {
       car.speed += v.engineAccel * health * dt;
     } else if (throttle < 0) {
       if (car.speed > 0.1) {
-        car.speed -= v.brakeDecel * dt; // braking
+        car.speed -= v.brakeDecel * wetBrake * dt; // braking
       } else {
         car.speed -= v.reverseAccel * dt; // reversing
       }
@@ -112,9 +123,15 @@ export function Vehicle() {
 
     car.acceleration = (car.speed - prevSpeed) / Math.max(dt, 1e-4);
 
-    // ---- Steering: less authority at speed ----
+    // ---- Steering: less authority at speed, and less again when wet ----
+    // Wet grip is applied to how far the wheels will bite rather than as a
+    // hard cornering cap, because the arcade model has no cap to lower: it
+    // turns the car by the bicycle equation and lets it hold whatever that
+    // asks for. Numbing the wheel is the same result from the driver's
+    // seat — the car will not take the line you point it at — and it leaves
+    // the dry handling exactly as it was.
     const speedFactor = 1 / (1 + Math.abs(car.speed) * v.steerSpeedFalloff);
-    const targetSteer = steering * v.maxSteerAngle * speedFactor;
+    const targetSteer = steering * v.maxSteerAngle * speedFactor * wetGrip;
     const rate = steering === 0 ? v.steerReturnRate : v.steerLerpRate;
     car.steerAngle = THREE.MathUtils.damp(car.steerAngle, targetSteer, rate, dt);
 
@@ -234,11 +251,15 @@ export function Vehicle() {
     // there is no offside to be on.
     car.wrongLane = !city && offset * Math.sign(ownLaneU()) < -0.6;
 
+    // Wet asphalt starts protesting sooner, in both directions — the
+    // thresholds come down by `wetSlipOnset`, so the same corner that was
+    // quiet in the dry now squeals through it.
+    const onset = 1 - (1 - w.wetSlipOnset) * wet;
     const corneringSlip = THREE.MathUtils.clamp(
-      (Math.abs(car.lateralAccel) - 5.5) / 8, 0, 1
+      (Math.abs(car.lateralAccel) - 5.5 * onset) / 8, 0, 1
     );
     const brakingSlip = car.braking
-      ? THREE.MathUtils.clamp((-car.acceleration - 11) / 6, 0, 1)
+      ? THREE.MathUtils.clamp((-car.acceleration - 11 * onset) / 6, 0, 1)
       : 0;
     const target = Math.min(
       1,
@@ -289,6 +310,8 @@ export function Vehicle() {
         <group ref={tiltRef}>
           <CarExterior />
           <CarInterior />
+          {/* Inside the tilt group, so the beams dip and lift with the body */}
+          <Headlights />
         </group>
       </group>
     </>

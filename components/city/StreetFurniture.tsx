@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Instance, Instances } from "@react-three/drei";
 import type { CityLayout } from "@/lib/city";
+import { LAMP_HEAD, LAMP_POOL } from "@/lib/litMaterials";
 
 /**
  * StreetFurniture
@@ -90,14 +91,36 @@ export function StreetFurniture({ city }: { city: CityLayout }) {
               />
             ))}
           </Instances>
+          {/* The head. Shares one material with every other lamp in the
+              city, so the whole street lights at once at dusk. */}
           <Instances limit={city.lamps.length}>
             <boxGeometry args={[0.42, 0.12, 0.22]} />
-            <meshBasicMaterial color="#cfd6d8" />
+            <primitive object={LAMP_HEAD} attach="material" />
             {city.lamps.map((lamp, i) => (
               <Instance
                 key={i}
                 position={[lamp.x - lamp.side * 0.85, lamp.y + 6.82, lamp.z]}
                 rotation={[0, lamp.rot, 0]}
+              />
+            ))}
+          </Instances>
+
+          {/* The pool each one throws on the road.
+
+              An additive disc rather than a point light, and not a
+              compromise: sixty real lights in view is not a frame budget on
+              any hardware, and a sodium lamp seen from a moving car is
+              exactly this — a soft ellipse on the tarmac and a glow at the
+              head. Lifted a few centimetres so it does not z-fight the
+              road, and drawn only after dark (see lib/litMaterials). */}
+          <Instances limit={city.lamps.length}>
+            <circleGeometry args={[3.6, 16]} />
+            <primitive object={LAMP_POOL} attach="material" />
+            {city.lamps.map((lamp, i) => (
+              <Instance
+                key={i}
+                position={[lamp.x - lamp.side * 1.1, lamp.y + 0.04, lamp.z]}
+                rotation={[-Math.PI / 2, 0, 0]}
               />
             ))}
           </Instances>

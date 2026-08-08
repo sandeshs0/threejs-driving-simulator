@@ -10,3 +10,5 @@ next-env.d.ts
 # traditional. See public/music/README.md.
 public/music/*
 !public/music/README.md
+!public/music/*.m4a
+!public/music/*.mp3

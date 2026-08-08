@@ -3,6 +3,8 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
+import { HEADLAMP_LENS } from "@/lib/litMaterials";
+import { CLOCK, SKY } from "@/lib/weather";
 import { useGame } from "@/stores/useGame";
 
 /**
@@ -49,10 +51,18 @@ const GLASS_MID: [number, number, number] = [
   (GLASS_BASE.z + GLASS_TOP.z) / 2,
 ];
 
+/** Where a wiper sits when it is not sweeping, and how far it swings. */
+const WIPER_PARK = 0.1;
+const WIPER_SWEEP = 0.95;
+
 export function CarExterior() {
   const spinRefs = useRef<(THREE.Group | null)[]>([]);
   const steerRefs = useRef<(THREE.Group | null)[]>([]);
   const brakeLights = useRef<(THREE.Mesh | null)[]>([]);
+  const wipers = useRef<(THREE.Group | null)[]>([]);
+  /** Wiper phase, in radians of its own cycle. Never resets, so speeding
+   *  the wipers up mid-sweep does not jump the blade. */
+  const wiperPhase = useRef(0);
 
   const m = useMemo(
     () => ({
@@ -105,23 +115,59 @@ export function CarExterior() {
         emissive: "#7d9dc4",
         emissiveIntensity: 0.35,
       }),
-      drl: new THREE.MeshBasicMaterial({ color: "#e8f2ff" }),
       tail: new THREE.MeshBasicMaterial({ color: "#8e1b18" }),
     }),
     []
   );
 
-  useFrame(() => {
+  // Tail-light colours, blended rather than switched: off, sidelights on
+  // after dark, and full under braking.
+  const tailColors = useMemo(
+    () => ({
+      off: new THREE.Color("#8e1b18"),
+      side: new THREE.Color("#c22a20"),
+      brake: new THREE.Color("#ff3b30"),
+      work: new THREE.Color(),
+    }),
+    []
+  );
+
+  useFrame((_, dt) => {
     const car = useGame.getState().vehicle;
     for (const w of spinRefs.current) if (w) w.rotation.x = car.wheelSpin;
     for (const g of steerRefs.current) if (g) g.rotation.y = car.steerAngle;
 
-    // Brake lights glow when the pedal is actually retarding the car.
+    // The lamp units themselves light from inside when the beams are on.
+    m.headlight.emissiveIntensity = 0.35 + SKY.headlights * 1.9;
+
+    // Tail lights: dim when the lights are on, bright under braking. Two
+    // separate states in the same lamp, which is what a rear light is.
+    const lit = car.braking
+      ? tailColors.work.copy(tailColors.brake)
+      : tailColors.work.copy(tailColors.off).lerp(tailColors.side, SKY.headlights);
     for (const light of brakeLights.current) {
       if (!light) continue;
-      (light.material as THREE.MeshBasicMaterial).color.set(
-        car.braking ? "#ff3b30" : "#8e1b18"
-      );
+      (light.material as THREE.MeshBasicMaterial).color.copy(lit);
+    }
+
+    // ---- Wipers ----
+    // They run while there is rain and then finish the stroke they are on
+    // rather than stopping mid-screen, which is why the phase is only ever
+    // advanced and the blade angle is read off it.
+    const rain = CLOCK.rain;
+    if (rain > 0.02) {
+      // Intermittent in drizzle, fast in a downpour.
+      wiperPhase.current += (1.1 + rain * 2.6) * dt;
+    } else {
+      // Park: creep on to the end of the current stroke and stop dead
+      // there. The blade is at rest at every whole cycle, so the next
+      // multiple of 2π is where it is allowed to stop.
+      const parked = Math.ceil(wiperPhase.current / (Math.PI * 2)) * Math.PI * 2;
+      wiperPhase.current = Math.min(parked, wiperPhase.current + 1.6 * dt);
+    }
+    const angle = WIPER_PARK + WIPER_SWEEP * (0.5 - 0.5 * Math.cos(wiperPhase.current));
+    for (const blade of wipers.current) {
+      if (blade) blade.rotation.z = angle;
     }
   });
 
@@ -180,12 +226,26 @@ export function CarExterior() {
       <mesh position={[0, 0.9, -0.98]} material={m.paintSoft} castShadow>
         <boxGeometry args={[1.72, 0.14, 0.26]} />
       </mesh>
-      {/* Wiper arms parked on it — the long one sweeps the driver's side,
-          which is the right in a keep-left country */}
-      {[0.42, -0.24].map((x) => (
-        <mesh key={x} position={[x, 0.98, -0.98]} rotation-z={0.1} material={m.darkChrome}>
-          <boxGeometry args={[0.6, 0.016, 0.016]} />
-        </mesh>
+      {/* Wiper arms — the long one sweeps the driver's side, which is the
+          right in a keep-left country.
+
+          Each blade hangs off a group at its outboard pivot rather than
+          being a bar centred on the screen: a mesh rotated about its own
+          middle scissors across the glass instead of sweeping it. The mesh
+          is offset by half its length so the geometry is unchanged and only
+          the origin has moved. */}
+      {[0.72, 0.06].map((pivot, i) => (
+        <group
+          key={pivot}
+          position={[pivot, 0.98, -0.98]}
+          ref={(el) => {
+            wipers.current[i] = el;
+          }}
+        >
+          <mesh position={[-0.3, 0, 0]} material={m.darkChrome}>
+            <boxGeometry args={[0.6, 0.016, 0.016]} />
+          </mesh>
+        </group>
       ))}
 
       {/* ---------------- Nose ---------------- */}
@@ -233,7 +293,14 @@ export function CarExterior() {
           <mesh rotation-y={side * 0.12} material={m.headlight} castShadow>
             <boxGeometry args={[0.46, 0.17, 0.22]} />
           </mesh>
-          <mesh position={[0, 0.08, -0.1]} rotation-y={side * 0.12} material={m.drl}>
+          {/* Daytime running strip — and the lens that lights up at night.
+              Shares its material with the traffic, so every lamp in the
+              valley comes on at the same moment. */}
+          <mesh
+            position={[0, 0.08, -0.1]}
+            rotation-y={side * 0.12}
+            material={HEADLAMP_LENS}
+          >
             <boxGeometry args={[0.42, 0.035, 0.04]} />
           </mesh>
         </group>

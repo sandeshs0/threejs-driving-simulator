@@ -2,6 +2,7 @@
 
 import { useControls, folder, Leva } from "leva";
 import { CONFIG } from "@/lib/config";
+import { CLOCK, WEATHER } from "@/lib/weather";
 
 /**
  * TuningPanel
@@ -77,6 +78,34 @@ export function TuningPanel() {
         fogFar: {
           value: CONFIG.sky.fogFar, min: 120, max: 800, step: 10,
           onChange: (v: number) => (CONFIG.sky.fogFar = v),
+        },
+      },
+      { collapsed: true }
+    ),
+    // The keys (T / K / L) cover the common cases; this is for pinning the
+    // sky to one exact minute, which is what you want when you are lighting
+    // a scene rather than driving through it.
+    Sky: folder(
+      {
+        hour: {
+          value: CLOCK.hour, min: 0, max: 24, step: 0.05,
+          onChange: (v: number) => (CLOCK.hour = v),
+        },
+        minutesPerSecond: {
+          value: CLOCK.rate, min: 0, max: 240, step: 5,
+          onChange: (v: number) => (CLOCK.rate = v),
+        },
+        weather: {
+          value: WEATHER[CLOCK.weather].name,
+          options: WEATHER.map((w) => w.name),
+          onChange: (v: string) => {
+            const i = WEATHER.findIndex((w) => w.name === v);
+            if (i >= 0) CLOCK.weather = i;
+          },
+        },
+        headlights: {
+          value: CONFIG.lighting.headlightIntensity, min: 0, max: 900, step: 10,
+          onChange: (v: number) => (CONFIG.lighting.headlightIntensity = v),
         },
       },
       { collapsed: true }

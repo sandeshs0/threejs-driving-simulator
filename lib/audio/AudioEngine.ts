@@ -1,4 +1,5 @@
 import { CONFIG } from "../config";
+import { CLOCK } from "../weather";
 import type { VehicleState } from "@/stores/useGame";
 
 /**
@@ -43,6 +44,9 @@ export class AudioEngine {
   private hornGain!: GainNode;
   private crashGain!: GainNode;
   private thudGain!: GainNode;
+  private rainGain!: GainNode;
+  private roofGain!: GainNode;
+  private sprayGain!: GainNode;
 
   // Filters we modulate per frame
   private engineFilter!: BiquadFilterNode;
@@ -183,6 +187,15 @@ export class AudioEngine {
     // single band reads as static rather than as an accident.
     [, this.crashGain] = band("bandpass", 2100, 1.1);
     [, this.thudGain] = band("lowpass", 140, 0.8);
+
+    // ---- Rain, in three parts, because that is how you hear it in a car ----
+    // The shower itself is a wide, airy hiss; the roof and screen are a
+    // duller patter you feel as much as hear; and the spray off the tyres is
+    // a wet, speed-dependent rush that is not there when you are stopped.
+    // One band would give you white noise and nothing else.
+    [, this.rainGain] = band("highpass", 1600, 0.5);
+    [, this.roofGain] = band("bandpass", 480, 0.8);
+    [, this.sprayGain] = band("bandpass", 1100, 0.6);
   }
 
   // ------------------------------------------------------------------ horn
@@ -291,6 +304,23 @@ export class AudioEngine {
     // ---- Ambience: slow breathing wind bed ----
     const breath = 0.6 + 0.4 * Math.sin(this.elapsed * 0.19);
     this.glide(this.ambienceGain.gain, 0.05 * breath * a.ambienceVolume, 0.3);
+
+    // ---- Rain ----
+    // Slow glides throughout: a shower that faded in over ten seconds
+    // outside the windscreen must not snap in the ears.
+    const rain = CLOCK.rain;
+    // Real rain is not steady. A slow wander in level is most of what
+    // separates it from a noise generator.
+    const gust = 0.82 + 0.18 * Math.sin(this.elapsed * 0.31 + 1.2);
+    this.glide(this.rainGain.gain, rain * gust * 0.075 * a.ambienceVolume, 0.4);
+    this.glide(this.roofGain.gain, rain * gust * 0.05 * a.ambienceVolume, 0.4);
+    // Spray needs standing water and movement, so it reads `wetness` —
+    // the road stays loud for a while after the sky goes quiet.
+    this.glide(
+      this.sprayGain.gain,
+      CLOCK.wetness * speedNorm * 0.14 * a.tyreVolume,
+      0.15
+    );
 
     // ---- Horn ----
     this.glide(this.hornGain.gain, horn ? a.hornVolume * 0.35 : 0, horn ? 0.008 : 0.03);

@@ -22,7 +22,10 @@
       "Bash(perl -0pi -e 's/rotation=\\\\{\\\\[0, \\(b|w|a|h\\)\\\\.rot, 0\\\\]\\\\}/rotation={[0, $1.rot + FACE, 0]}/g' components/city/CityChunk.tsx)",
       "WebFetch(domain:fmstream.org)",
       "WebFetch(domain:fmradiogl.com)",
-      "WebFetch(domain:radio.menu)"
+      "WebFetch(domain:radio.menu)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

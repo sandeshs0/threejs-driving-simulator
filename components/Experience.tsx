@@ -13,6 +13,8 @@ import { Traffic } from "@/components/traffic/Traffic";
 import { Pedestrians } from "@/components/city/Pedestrians";
 import { CityGridManager } from "@/components/city/CityGridManager";
 import { Atmosphere } from "@/components/environment/Atmosphere";
+import { Weather } from "@/components/environment/Weather";
+import { Rain } from "@/components/environment/Rain";
 import { Effects } from "@/components/effects/Effects";
 import { AudioSystem } from "@/components/audio/AudioSystem";
 import { HUD } from "@/components/ui/HUD";
@@ -39,6 +41,8 @@ export default function Experience() {
       <KeyboardControls map={controlsMap}>
         <Canvas shadows dpr={[1, 2]}>
           <Suspense fallback={null}>
+            {/* First, so SKY is current before anything reads it. */}
+            <Weather />
             {/*
               Reflection source for the car's black paint and chrome.
               Built from geometry rather than a downloaded HDR: a sky dome,
@@ -76,6 +80,7 @@ export default function Experience() {
             <Traffic />
             <Pedestrians />
             <Atmosphere />
+            <Rain />
             <Effects />
             <AudioSystem />
             <HudBridge />
