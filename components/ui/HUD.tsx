@@ -192,7 +192,6 @@ function TouchHud({ hud, muted }: { hud: HudState; muted: boolean }) {
       />
 
       <KeepLeft show={hud.wrongLane} />
-      <TouchButtonStrip muted={muted} />
     </>
   );
 }
@@ -222,49 +221,6 @@ function KeepLeft({ show }: { show: boolean }) {
   return (
     <div className="pointer-events-none fixed left-1/2 top-20 -translate-x-1/2 select-none rounded-full bg-red-600/85 px-4 py-1.5 text-sm font-semibold tracking-wide text-white shadow-lg">
       Keep left
-    </div>
-  );
-}
-
-/**
- * The two keys with no key on a phone: mute, and the stereo.
- *
- * There was a Map button here too, sitting directly under a radar showing
- * the same world at a different zoom — two controls for one idea, in the
- * corner with the least room. The radar opens the map itself now (see
- * <Minimap/>), which is what everyone tries first anyway.
- *
- * Under the radar rather than beside the pedals, because both of these are
- * things you press while stopped or on a straight, and the bottom edge is
- * committed to things you press while driving.
- */
-function TouchButtonStrip({ muted }: { muted: boolean }) {
-  const toggleMute = useGame((s) => s.toggleMute);
-  const setOpen = useMedia((s) => s.setOpen);
-  const source = useMedia((s) => s.source);
-
-  const button =
-    "flex h-10 w-10 touch-none items-center justify-center rounded-full bg-black/45 text-white/85 ring-1 ring-white/15 backdrop-blur-sm";
-
-  return (
-    /* A row, not a column. Stacked, these two reached down to y=236 on a
-       375-point screen and the wheel starts at 217 — laid out sideways they
-       are 88 wide instead of 88 tall, and they sit above it cleanly. */
-    <div className="safe-right fixed top-[9.25rem] z-10 flex gap-2 select-none">
-      <button
-        aria-label={muted ? "Unmute" : "Mute"}
-        onClick={toggleMute}
-        className={`${button} ${muted ? "text-amber-300" : ""}`}
-      >
-        <Icon name={muted ? "volumeOff" : "volume"} size={17} />
-      </button>
-      <button
-        aria-label="Infotainment"
-        onClick={() => setOpen(true)}
-        className={button}
-      >
-        <Icon name={source === "radio" ? "radio" : "note"} size={17} />
-      </button>
     </div>
   );
 }

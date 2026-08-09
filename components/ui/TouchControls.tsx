@@ -5,9 +5,10 @@ import {
   INPUT,
   TOUCH,
   calibrateTilt,
+  enableTilt,
+  enableWheel,
   releaseAll,
   setHorn,
-  setSteerMode,
   setThrottle,
   setWheelSteer,
   toggleInvert,
@@ -16,6 +17,8 @@ import {
   type SteerMode,
 } from "@/lib/input";
 import { useGame } from "@/stores/useGame";
+import { useMedia } from "@/stores/useMedia";
+import { Icon } from "./Icons";
 
 /**
  * TouchControls
@@ -54,6 +57,12 @@ export function TouchControls() {
   const [mode, setMode] = useState<SteerMode>(TOUCH.mode);
   const [invert, setInvert] = useState(TOUCH.invert);
   const [settings, setSettings] = useState(false);
+  /** Why tilt is unavailable, when it is. Empty when there is nothing to say. */
+  const [tiltNote, setTiltNote] = useState("");
+  const muted = useGame((s) => s.muted);
+  const toggleMute = useGame((s) => s.toggleMute);
+  const openStereo = useMedia((s) => s.setOpen);
+  const stereoSource = useMedia((s) => s.source);
 
   // The overlay is mounted for the session; it must not hold a pedal down
   // through a tab switch or an incoming call.
@@ -89,30 +98,54 @@ export function TouchControls() {
 
       {/* ---------------- Right hand: the wheel ---------------- */}
       <div className="safe-bottom safe-right fixed z-30 select-none">
-        <Wheel steerable={mode === "wheel"} />
+        <Wheel follow={mode === "tilt"} />
       </div>
 
       {/*
-        What is left of the keyboard: the viewpoint, and the settings.
+        What is left of the keyboard.
 
-        Two buttons, because these are the only things you press that are
-        not driving. Anything more out here runs into the pedals on a
-        667-point screen — an iPhone SE on its side, the narrowest thing
-        anyone will play this on.
+        Mute and the stereo used to be a column under the radar. On a
+        320-point-tall screen — an iPhone SE on its side, once the browser
+        chrome has taken its share — that column reached down into the top
+        of the wheel and the wheel drew over both of them. Laid out here
+        they cost no vertical space at all, and the middle of the screen is
+        the one region neither the pedals nor the wheel wants.
+
+        Four 40s and a 6-gap is 178 wide. On the narrowest phone in
+        landscape the pedals end at 162 and the wheel starts at 410, so it
+        fits with room either side rather than only just.
       */}
-      <div className="safe-bottom fixed left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 select-none">
+      <div className="safe-bottom fixed left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 select-none">
         <TapButton
           label="Camera"
           onTap={() => useGame.getState().cycleCamera()}
-          className="h-11 w-11 rounded-full bg-black/45 ring-white/15"
+          className="h-10 w-10 rounded-full bg-black/45 ring-white/15"
         >
           <span className="text-[13px] font-semibold">C</span>
         </TapButton>
 
         <TapButton
+          label={muted ? "Unmute" : "Mute"}
+          onTap={toggleMute}
+          className={`h-10 w-10 rounded-full bg-black/45 ring-white/15 ${
+            muted ? "text-amber-300" : ""
+          }`}
+        >
+          <Icon name={muted ? "volumeOff" : "volume"} size={17} />
+        </TapButton>
+
+        <TapButton
+          label="Infotainment"
+          onTap={() => openStereo(true)}
+          className="h-10 w-10 rounded-full bg-black/45 ring-white/15"
+        >
+          <Icon name={stereoSource === "radio" ? "radio" : "note"} size={17} />
+        </TapButton>
+
+        <TapButton
           label="Steering settings"
           onTap={() => setSettings((open) => !open)}
-          className={`h-11 w-11 rounded-full ring-white/15 ${
+          className={`h-10 w-10 rounded-full ring-white/15 ${
             settings ? "bg-white/30" : "bg-black/45"
           }`}
         >
@@ -125,9 +158,21 @@ export function TouchControls() {
           <TapButton
             label="Switch steering method"
             onTap={() => {
-              const next: SteerMode = TOUCH.mode === "tilt" ? "wheel" : "tilt";
-              setSteerMode(next);
-              setMode(next);
+              if (TOUCH.mode === "tilt") {
+                enableWheel();
+                setMode("wheel");
+                setTiltNote("");
+                return;
+              }
+              // Asking again rather than just assigning the mode: the first
+              // attempt may have been refused, or made before the page was
+              // on a secure origin. This press is itself the gesture iOS
+              // wants, and the answer is reported rather than assumed.
+              setTiltNote("Checking…");
+              void enableTilt().then((ok) => {
+                setMode(TOUCH.mode);
+                setTiltNote(ok ? "" : "No motion data — needs HTTPS or a gyroscope");
+              });
             }}
             className="h-10 rounded-xl bg-white/10 px-3.5 ring-white/20"
           >
@@ -162,6 +207,12 @@ export function TouchControls() {
               </TapButton>
             </>
           )}
+        </div>
+      )}
+
+      {settings && tiltNote && (
+        <div className="safe-bottom pointer-events-none fixed left-1/2 z-30 mb-28 -translate-x-1/2 rounded-lg bg-black/80 px-3 py-1.5 text-[11px] text-amber-200/90 ring-1 ring-white/10">
+          {tiltNote}
         </div>
       )}
     </>
@@ -360,25 +411,29 @@ const WHEEL_LOCK = 110;
 /**
  * The wheel.
  *
- * Drawn once whichever way you steer, and that is deliberate: in tilt mode
- * it stops taking drags but keeps turning, driven off `INPUT.steer` at frame
- * rate. Tilt otherwise gives you no feedback at all until the car is already
- * in a wall, and a wheel that mirrors what the sensor thinks you asked for
- * is a better instrument than any bar graph — it is the instrument the car
- * has.
+ * **It always takes drags.** For a while it did not — in tilt mode it was an
+ * instrument that mirrored the sensor and nothing else — and that turned a
+ * silent sensor into a car with no steering at all, which is the worst
+ * failure this interface can have. There is no reason the two have to be
+ * exclusive: grab it and your hand owns the steering, let go and the tilt
+ * takes it back. Whatever else is wrong, the wheel on the screen turns the
+ * car.
+ *
+ * `follow` therefore says what happens when *nobody is holding it*: mirror
+ * `INPUT.steer` so the tilt has an instrument to read on, or unwind to
+ * centre so the wheel is the only source.
  *
  * The angle comes from the pointer's position *around* the centre, so a
  * thumb anywhere on the rim arcs it, and the grab point is wherever the
  * thumb landed. A horizontal-drag slider is easier to write and immediately
  * reads as a different control from the one drawn on the screen.
  *
- * It self-centres on release over a few frames rather than snapping — a
- * wheel that returned instantly makes every corner exit a flick — and it
- * clamps at the stops instead of winding past them, because dead travel
- * that has to be unwound before the car responds feels exactly as broken as
- * it sounds.
+ * Self-centring takes a few frames rather than snapping — a wheel that
+ * returned instantly makes every corner exit a flick — and it clamps at the
+ * stops instead of winding past them, because dead travel that has to be
+ * unwound before the car responds feels exactly as broken as it sounds.
  */
-function Wheel({ steerable }: { steerable: boolean }) {
+function Wheel({ follow }: { follow: boolean }) {
   const rim = useRef<HTMLDivElement>(null);
   const active = useRef<number | null>(null);
   /** Pointer angle when the press started, less the wheel's angle then. */
@@ -395,15 +450,17 @@ function Wheel({ steerable }: { steerable: boolean }) {
     const tick = () => {
       frame = requestAnimationFrame(tick);
 
-      // Tilt: the wheel is an instrument, not a control. Follow the input.
-      if (!steerable) {
+      // Held: the hand owns both the wheel and the steering.
+      if (active.current !== null) return;
+
+      // Let go, tilt driving: the wheel becomes the instrument again.
+      if (follow) {
         angle.current = -INPUT.steer * WHEEL_LOCK;
         paint();
         return;
       }
 
-      // Wheel, released: unwind toward centre, still reporting on the way.
-      if (active.current !== null) return;
+      // Let go, wheel driving: unwind, still reporting on the way back.
       if (Math.abs(angle.current) < 0.4) {
         if (angle.current !== 0) {
           angle.current = 0;
@@ -419,15 +476,13 @@ function Wheel({ steerable }: { steerable: boolean }) {
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [steerable, paint]);
+  }, [follow, paint]);
 
-  // Leaving wheel mode must not strand the last steering input.
+  // Changing steering method must not strand a half-turn of lock.
   useEffect(() => {
-    if (!steerable) {
-      active.current = null;
-      angle.current = 0;
-    }
-  }, [steerable]);
+    active.current = null;
+    setWheelSteer(0);
+  }, [follow]);
 
   const pointerAngle = (e: React.PointerEvent<HTMLDivElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -436,29 +491,31 @@ function Wheel({ steerable }: { steerable: boolean }) {
     return (Math.atan2(dx, -dy) * 180) / Math.PI;
   };
 
-  const drag = steerable
-    ? {
-        onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          active.current = e.pointerId;
-          grab.current = pointerAngle(e) - angle.current;
-        },
-        onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
-          if (active.current !== e.pointerId) return;
-          const next = pointerAngle(e) - grab.current;
-          angle.current = Math.max(-WHEEL_LOCK, Math.min(WHEEL_LOCK, next));
-          setWheelSteer(-clamp(angle.current / WHEEL_LOCK));
-          paint();
-        },
-        onPointerUp: () => (active.current = null),
-        onPointerCancel: () => (active.current = null),
-        onLostPointerCapture: () => (active.current = null),
-      }
-    : {};
+  const release = () => {
+    if (active.current === null) return;
+    active.current = null;
+    // Hand the steering straight back to the sensor rather than leaving the
+    // last dragged value standing until the next reading lands.
+    if (follow) setWheelSteer(0);
+  };
 
   return (
     <div
-      {...drag}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        active.current = e.pointerId;
+        grab.current = pointerAngle(e) - angle.current;
+      }}
+      onPointerMove={(e) => {
+        if (active.current !== e.pointerId) return;
+        const next = pointerAngle(e) - grab.current;
+        angle.current = Math.max(-WHEEL_LOCK, Math.min(WHEEL_LOCK, next));
+        setWheelSteer(-clamp(angle.current / WHEEL_LOCK));
+        paint();
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
       onContextMenu={(e) => e.preventDefault()}
       className="relative touch-none"
       style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}

@@ -35,7 +35,18 @@ export const TOUCH = {
   mode: "tilt" as SteerMode,
   /** The API exists. Says nothing about whether permission was given. */
   tiltSupported: false,
+  /** Permission was granted, or was never required. */
   tiltGranted: false,
+  /**
+   * A reading with real numbers in it has actually arrived.
+   *
+   * This is the one that matters and it is not implied by the other two.
+   * Android has no permission call to fail, so `addEventListener` there
+   * always "succeeds" — and then sends nothing at all if the page is on an
+   * insecure origin, or if the device has no gyroscope. Trusting permission
+   * as proof of data is how tilt mode ends up silently steering nowhere.
+   */
+  tiltLive: false,
   /**
    * Neutral tilt, captured when the player starts. Nobody holds a phone
    * flat, and assuming they do puts the car in the barrier immediately.
@@ -139,8 +150,13 @@ function steerAxis(e: DeviceOrientationEvent): number {
 }
 
 function onOrientation(e: DeviceOrientationEvent) {
+  // A browser with no sensor behind it still fires this event, with nulls
+  // in it. Listening and receiving are not the same thing.
+  if (e.beta === null && e.gamma === null) return;
+  TOUCH.tiltLive = true;
+
   rawTilt = steerAxis(e);
-  if (TOUCH.mode !== "tilt" || !TOUCH.tiltGranted) return;
+  if (TOUCH.mode !== "tilt") return;
 
   const offset = (rawTilt - TOUCH.zero) * (TOUCH.invert ? -1 : 1);
   const magnitude = Math.max(0, Math.abs(offset) - TOUCH.deadZone);
@@ -198,10 +214,33 @@ export async function requestTilt(): Promise<boolean> {
   }
   TOUCH.tiltGranted = true;
 
-  // Nothing has arrived yet, so calibrate on the first readings rather than
-  // on a zero that would mean "phone flat on the table".
-  window.setTimeout(calibrateTilt, 400);
+  // Permission is not data. Wait for a reading to actually turn up before
+  // claiming this works, because everything downstream — whether the wheel
+  // takes drags, what the settings say — hangs off the answer, and the
+  // failure this catches is silent by nature.
+  if (!(await waitForReadings(1500))) {
+    TOUCH.mode = "wheel";
+    return false;
+  }
+
+  // Calibrate off a real attitude rather than a zero that would mean
+  // "phone flat on the table".
+  calibrateTilt();
   return true;
+}
+
+/** Resolve true as soon as a reading arrives, false if none does in `ms`. */
+function waitForReadings(ms: number): Promise<boolean> {
+  if (TOUCH.tiltLive) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const deadline = Date.now() + ms;
+    const poll = () => {
+      if (TOUCH.tiltLive) resolve(true);
+      else if (Date.now() > deadline) resolve(false);
+      else window.setTimeout(poll, 80);
+    };
+    poll();
+  });
 }
 
 /** Take the current attitude as straight ahead. */
@@ -210,8 +249,26 @@ export function calibrateTilt() {
   INPUT.steer = 0;
 }
 
-export function setSteerMode(mode: SteerMode) {
-  TOUCH.mode = mode;
+/**
+ * Switch to tilt, negotiating for it first.
+ *
+ * The old version of this just assigned `TOUCH.mode = "tilt"`, which on a
+ * device that had already refused — or never been asked, or been asked over
+ * plain http — put the game into a mode with no input behind it and no way
+ * to tell. Asking again is free, the button press is itself the user
+ * gesture iOS requires, and the return value is the truth rather than a
+ * hope. Callers are expected to say so when it comes back false.
+ */
+export async function enableTilt(): Promise<boolean> {
+  const ok = await requestTilt();
+  TOUCH.mode = ok ? "tilt" : "wheel";
+  INPUT.steer = 0;
+  save();
+  return ok;
+}
+
+export function enableWheel() {
+  TOUCH.mode = "wheel";
   INPUT.steer = 0;
   save();
 }

@@ -287,6 +287,17 @@ is called after the answer rather than before it, or the player would be
 driving behind a modal dialog. It can be refused, and plenty of devices have
 no usable sensor at all, so every failure path lands on the wheel.
 
+**Permission is not data, and conflating the two is how tilt fails
+silently.** Android has no permission call to refuse, so `addEventListener`
+always "succeeds" there — and then delivers nothing at all if the page is on
+an insecure origin or the device has no gyroscope. A browser with no sensor
+behind it still fires the event, with nulls in it. So `TOUCH.tiltLive` is
+set only by a reading with real numbers in it, and `requestTilt` waits up to
+a second and a half for one before claiming tilt works. Switching *to* tilt
+from the settings goes through the same negotiation rather than assigning
+the mode — the button press is itself the gesture iOS wants — and says so on
+screen when it comes back empty.
+
 Three things about tilt that are not obvious until it is wrong:
 
 - **The steering axis is not the same axis in both orientations.** Steering
@@ -311,11 +322,14 @@ snapping, and it clamps at the stops instead of winding past them — dead
 travel that has to be unwound before the car responds feels exactly as broken
 as it sounds.
 
-**It is drawn in tilt mode too**, where it stops taking drags but keeps
-turning, driven off `INPUT.steer` at frame rate. Tilt otherwise gives no
-feedback at all until the car is already in a wall, and a wheel mirroring
-what the sensor thinks you asked for is a better instrument than any bar
-graph — it is the instrument the car has.
+**It always takes drags, and it is drawn in tilt mode too.** For a while it
+was an instrument in tilt mode and nothing else — it mirrored the sensor and
+refused to be turned — and that turned a silent sensor into a car with no
+steering at all, which is the worst failure this interface can have. The two
+roles are not exclusive: grab it and your hand owns the steering, let go and
+the tilt takes it back. So the mode only decides what happens when nobody is
+holding it — mirror `INPUT.steer`, or unwind to centre. Whatever else is
+wrong, the wheel on the screen turns the car.
 
 **Everything defaults against you on a phone**, so `globals.css` turns off the
 tap-delay, the double-tap zoom, the long-press callout and the rubber-band
@@ -336,6 +350,12 @@ The place, the speed and the clock stack into one corner block instead of
 two. **The radar is the map button** — it had one of its own for a while,
 sitting directly beneath a radar showing the same world at a different zoom,
 which is two controls for one idea in the corner with the least room.
+
+Mute and the stereo sat under the radar too, until it turned out that on a
+320-point-tall screen that column reached into the top of the wheel and the
+wheel drew over both. They are in the middle of the bottom edge now, beside
+the camera and the settings, where they cost no vertical space and neither
+the pedals nor the wheel wants the room.
 
 The pixel ratio is capped at 1.5, which on a device reporting 3 is the
 single biggest lever there is and costs less than dropping the shadows

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TOUCH, detectTouch, loadTouchSettings, requestTilt, useIsTouch } from "@/lib/input";
+import { TOUCH, detectTouch, enableTilt, loadTouchSettings, useIsTouch } from "@/lib/input";
 import { useGame } from "@/stores/useGame";
 
 /**
@@ -42,10 +42,11 @@ export function StartOverlay() {
     const audio = document.getElementById("main-media-player") as HTMLAudioElement;
     audio?.play().catch(() => {});
 
-    // Refused, unsupported, or simply not a phone — `requestTilt` falls
-    // back to the wheel on every one of those paths, so there is nothing
-    // to handle here beyond waiting for the answer.
-    if (TOUCH.available) await requestTilt();
+    // Refused, unsupported, insecure origin, or no gyroscope — `enableTilt`
+    // lands on the wheel for every one of those, and the wheel is drivable
+    // whatever happens here, so there is nothing to handle beyond waiting
+    // for the answer.
+    if (TOUCH.available) await enableTilt();
 
     start();
   };
@@ -68,14 +69,14 @@ export function StartOverlay() {
 
       {isTouch ? (
         <div className="mt-8 grid grid-cols-[auto_auto] gap-x-5 gap-y-2 text-sm text-white/70">
-          <span className="text-white/90">Tilt</span>
-          <span>Steer — or switch to the on-screen wheel</span>
-          <span className="text-white/90">Gas / Brake</span>
-          <span>Bottom right</span>
-          <span className="text-white/90">Centre</span>
-          <span>Re-zero the tilt to how you are holding it</span>
-          <span className="text-white/90">Flip</span>
-          <span>If tilting left steers right</span>
+          <span className="text-white/90">Wheel</span>
+          <span>Bottom right — turn it, or tilt the phone</span>
+          <span className="text-white/90">Pedals</span>
+          <span>Bottom left — brake, then gas</span>
+          <span className="text-white/90">Horn</span>
+          <span>The middle of the wheel</span>
+          <span className="text-white/90">⚙</span>
+          <span>Steering method, re-centre, flip the tilt</span>
           <span className="text-white/90">Drag</span>
           <span>Look around the cabin</span>
         </div>
