@@ -76,7 +76,7 @@ export function StartOverlay() {
           <span className="text-white/90">Horn</span>
           <span>The middle of the wheel</span>
           <span className="text-white/90">⚙</span>
-          <span>Steering method, re-centre, flip the tilt</span>
+          <span>Steering method, re-centre, flip the tilt, full screen</span>
           <span className="text-white/90">Drag</span>
           <span>Look around the cabin</span>
         </div>
@@ -100,6 +100,8 @@ export function StartOverlay() {
           <span>Infotainment — radio, music, YouTube</span>
           <span className="font-mono text-white/90">T / K / L</span>
           <span>Time of day · weather · headlights</span>
+          <span className="font-mono text-white/90">F</span>
+          <span>Full screen</span>
           <span className="font-mono text-white/90">Mouse</span>
           <span>Look around the cabin</span>
         </div>

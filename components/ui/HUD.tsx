@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { CAMERA_MODE_NAMES } from "@/lib/controls";
+import { useFullscreen } from "@/lib/fullscreen";
 import { useIsTouch } from "@/lib/input";
 import { ROUTE_END, WAYPOINTS } from "@/lib/journey";
 import { useGame, type HudState } from "@/stores/useGame";
@@ -41,14 +42,27 @@ export function HUD() {
    */
   const isTouch = useIsTouch();
 
-  // M toggles audio.
+  const fullscreen = useFullscreen();
+
+  // M toggles audio, F toggles full screen.
+  //
+  // A keypress counts as the user gesture the Fullscreen API insists on, so
+  // this works from here; what would not work is calling it on load.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        return;
+      }
       if (e.code === "KeyM") toggleMute();
+      else if (e.code === "KeyF") fullscreen.toggle();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleMute]);
+    // `fullscreen.toggle` rather than `fullscreen`: the hook returns a fresh
+    // object every render and depending on it would tear down and re-attach
+    // this listener on every HUD update, which is five times a second.
+  }, [toggleMute, fullscreen.toggle]);
 
   // With the full map open the overlay would just be noise on top of it.
   if (mapExpanded) return null;
@@ -128,7 +142,7 @@ export function HUD() {
       <div className="pointer-events-none fixed top-6 right-6 select-none text-right text-[13px] leading-relaxed text-white/60 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
         W accelerate · S brake / reverse · A / D steer
         <br />C camera · H horn · M mute · Tab map · I stereo · mouse to look
-        <br />T time of day · K weather · L headlights
+        <br />T time of day · K weather · L headlights · F full screen
       </div>
 
       <StereoButton />

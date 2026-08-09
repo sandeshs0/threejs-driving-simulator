@@ -24,6 +24,7 @@ Click the title card to start — that click is also the user gesture browsers r
 | `T` | Time of day — step to the next dawn / noon / dusk / night |
 | `K` | Weather — clear / hazy / rain / monsoon |
 | `L` | Headlights — auto / on / off |
+| `F` | Full screen |
 | Mouse | Look around / orbit |
 
 On a phone or tablet, turn the device sideways: tilt to steer, pedals bottom
@@ -78,6 +79,7 @@ lib/
   journey.ts            route signals, waypoints, progress and place names
   weather.ts            the clock, the sun path, and the sky as 0→1 signals
   input.ts              tilt and touch, reduced to the numbers the keys make
+  fullscreen.ts         the API, its prefixes, and the platform without it
   litMaterials.ts       the handful of materials that change after dark
   junction.ts           the Kalanki underpass cut, as a terrain function
   cityGrid.ts           the street network: analytic lattice + containment
@@ -361,6 +363,19 @@ The pixel ratio is capped at 1.5, which on a device reporting 3 is the
 single biggest lever there is and costs less than dropping the shadows
 would. Leva is hidden: it is a mouse tool, and on glass it is a permanent
 obstruction that cannot usefully be operated.
+
+**Full screen** is behind the same gear, and on the way in it asks for a
+landscape orientation lock — which is only permitted from inside full
+screen, and which quietly retires the portrait prompt on the platforms that
+honour it. `F` does the same thing on a keyboard.
+
+Safari on iPhone has no Fullscreen API to call. Not prefixed, not partial —
+on iOS it applies to `<video>` elements and that is the whole story, and
+iPadOS only caught up in 16.4. So `lib/fullscreen.ts` reports the truth and
+the flyout names the route that does work there instead of showing a button
+that cannot: Add to Home Screen, which lands without browser chrome because
+`app/manifest.ts` declares `display: "fullscreen"`. In landscape that
+address bar and toolbar are most of the room the pedals want back.
 
 ### The road is math, not meshes
 

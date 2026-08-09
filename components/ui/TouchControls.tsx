@@ -16,6 +16,7 @@ import {
   useIsTouch,
   type SteerMode,
 } from "@/lib/input";
+import { useFullscreen } from "@/lib/fullscreen";
 import { useGame } from "@/stores/useGame";
 import { useMedia } from "@/stores/useMedia";
 import { Icon } from "./Icons";
@@ -63,6 +64,7 @@ export function TouchControls() {
   const toggleMute = useGame((s) => s.toggleMute);
   const openStereo = useMedia((s) => s.setOpen);
   const stereoSource = useMedia((s) => s.source);
+  const fullscreen = useFullscreen();
 
   // The overlay is mounted for the session; it must not hold a pedal down
   // through a tab switch or an incoming call.
@@ -153,8 +155,18 @@ export function TouchControls() {
         </TapButton>
       </div>
 
+      {/*
+        Settings, as a column.
+
+        It was a row, and a row wide enough to hold four labelled pills
+        reaches back across the pedals on a 568-point screen — the flyout
+        sits 76 points off the bottom edge and the accelerator is 140 tall,
+        so they share that band. Stacking spends the axis nothing else down
+        here is using, and a vertical list is the better shape for a menu
+        anyway.
+      */}
       {settings && (
-        <div className="safe-bottom fixed left-1/2 z-30 mb-14 flex -translate-x-1/2 items-center gap-2 rounded-2xl bg-black/75 p-2 ring-1 ring-white/15 backdrop-blur-sm select-none">
+        <div className="safe-bottom fixed left-1/2 z-30 mb-14 flex w-44 -translate-x-1/2 flex-col gap-1.5 rounded-2xl bg-black/80 p-2 ring-1 ring-white/15 backdrop-blur-sm select-none">
           <TapButton
             label="Switch steering method"
             onTap={() => {
@@ -174,7 +186,7 @@ export function TouchControls() {
                 setTiltNote(ok ? "" : "No motion data — needs HTTPS or a gyroscope");
               });
             }}
-            className="h-10 rounded-xl bg-white/10 px-3.5 ring-white/20"
+            className="h-10 w-full rounded-xl bg-white/10 px-3.5 ring-white/20"
           >
             <span className="text-[12px] font-medium">
               {mode === "tilt" ? "Use wheel" : "Use tilt"}
@@ -189,7 +201,7 @@ export function TouchControls() {
               <TapButton
                 label="Centre the steering"
                 onTap={calibrateTilt}
-                className="h-10 rounded-xl bg-white/10 px-3.5 ring-white/20"
+                className="h-10 w-full rounded-xl bg-white/10 px-3.5 ring-white/20"
               >
                 <span className="text-[12px] font-medium">Centre</span>
               </TapButton>
@@ -199,13 +211,38 @@ export function TouchControls() {
                   toggleInvert();
                   setInvert(TOUCH.invert);
                 }}
-                className={`h-10 rounded-xl px-3.5 ring-white/20 ${
+                className={`h-10 w-full rounded-xl px-3.5 ring-white/20 ${
                   invert ? "bg-amber-300/30" : "bg-white/10"
                 }`}
               >
                 <span className="text-[12px] font-medium">Flip</span>
               </TapButton>
             </>
+          )}
+
+          <div className="my-0.5 h-px w-full bg-white/10" />
+
+          {fullscreen.supported ? (
+            <TapButton
+              label={fullscreen.active ? "Leave full screen" : "Play full screen"}
+              // Landscape lock is only permitted from inside full screen, so
+              // it is asked for on the way in and nowhere else.
+              onTap={() => fullscreen.toggle(true)}
+              className="h-10 w-full rounded-xl bg-white/10 px-3.5 ring-white/20"
+            >
+              <span className="text-[12px] font-medium">
+                {fullscreen.active ? "Exit full screen" : "Full screen"}
+              </span>
+            </TapButton>
+          ) : (
+            !fullscreen.standalone && (
+              /* iPhone. There is no Fullscreen API to call, so the honest
+                 thing is to name the route that does work rather than show
+                 a button that cannot. */
+              <p className="px-1 py-0.5 text-center text-[10px] leading-snug text-white/45">
+                For full screen, use Share → Add to Home Screen
+              </p>
+            )
           )}
         </div>
       )}
